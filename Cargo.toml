@@ -1,0 +1,11 @@
+[package]
+name = "gptman"
+version = "0.1.0"
+authors = ["Cecile Tonglet <cecile.tonglet@cecton.com>"]
+edition = "2018"
+
+[dependencies]
+bincode = "1.0.1"
+serde_derive = "1.0.83"
+serde = "1.0.83"
+crc = "1.0.0"
