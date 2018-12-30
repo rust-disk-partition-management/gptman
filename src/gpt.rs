@@ -136,6 +136,18 @@ impl GPTHeader {
 #[derive(Debug)]
 pub struct PartitionName(String);
 
+impl PartitionName {
+    fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
+impl From<&str> for PartitionName {
+    fn from(value: &str) -> PartitionName {
+        PartitionName(value.to_string())
+    }
+}
+
 struct UTF16LEVisitor;
 
 impl<'de> Visitor<'de> for UTF16LEVisitor {
@@ -301,12 +313,25 @@ impl GPT {
         slots.first().map(|&(i, _)| i)
     }
 
-    pub fn add_partition(&mut self) -> Result<&mut GPTPartitionEntry, Error> {
-        self.partitions
-            .iter_mut()
-            .filter(|x| x.is_unused())
+    pub fn add_partition(&mut self, new: GPTPartitionEntry) -> Result<(), Error> {
+        if let Some((i, _)) = self
+            .partitions
+            .iter()
+            .enumerate()
+            .filter(|(_, x)| x.is_unused())
             .next()
-            .ok_or(Error::NoSlotFree)
+        {
+            self.partitions[i] = new;
+
+            Ok(())
+        } else {
+            Err(Error::NoSlotFree)
+        }
+    }
+
+    pub fn sort_partitions(&mut self) {
+        self.partitions
+            .sort_by(|a, b| a.starting_lba.cmp(&b.starting_lba));
     }
 }
 
@@ -448,5 +473,39 @@ mod test {
         assert_eq!(gpt.find_optimal_place(10000), None);
         assert_eq!(gpt.find_optimal_place(5), Some(79));
         assert_eq!(gpt.find_optimal_place(20), Some(15));
+    }
+
+    #[test]
+    fn add_partition_in_the_table_and_sort() {
+        let mut gpt = GPT::find_from(&mut fs::File::open(DISK1).unwrap()).unwrap();
+
+        assert!(gpt
+            .add_partition(GPTPartitionEntry {
+                starting_lba: gpt.find_first_place(5).unwrap(),
+                ending_lba: 5,
+                attribute_bits: 0,
+                partition_type_guid: [1; 16],
+                partition_name: "Baz".into(),
+                unique_parition_guid: [1; 16],
+            })
+            .is_ok());
+
+        assert_eq!(
+            gpt.partitions
+                .iter()
+                .filter(|x| x.is_used())
+                .map(|x| x.partition_name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["Foo", "Bar", "Baz"]
+        );
+        gpt.sort_partitions();
+        assert_eq!(
+            gpt.partitions
+                .iter()
+                .filter(|x| x.is_used())
+                .map(|x| x.partition_name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["Foo", "Baz", "Bar"]
+        );
     }
 }
