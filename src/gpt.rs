@@ -1,10 +1,10 @@
-use bincode::{deserialize_from, serialize};
+use bincode::{deserialize_from, serialize, serialize_into};
 use crc::{crc32, Hasher32};
 use serde::de::{Deserialize, Deserializer, SeqAccess, Visitor};
 use serde::ser::{Serialize, SerializeTuple, Serializer};
 use std::fmt;
 use std::io;
-use std::io::{Read, Seek, SeekFrom};
+use std::io::{Read, Seek, SeekFrom, Write};
 
 #[derive(Debug)]
 pub enum Error {
@@ -96,6 +96,32 @@ impl GPTHeader {
         Ok(gpt)
     }
 
+    pub fn write_into<W: ?Sized>(
+        &mut self,
+        mut writer: &mut W,
+        sector_size: u64,
+        partitions: &Vec<GPTPartitionEntry>,
+    ) -> Result<(), Error>
+    where
+        W: Write + Seek,
+    {
+        self.update_crc32_checksum();
+        self.update_partition_entry_array_crc32(partitions);
+
+        writer.seek(SeekFrom::Start(self.primary_lba * sector_size))?;
+        serialize_into(&mut writer, &self)?;
+
+        for i in 0..self.number_of_partition_entries {
+            writer.seek(SeekFrom::Start(
+                self.partition_entry_lba * sector_size
+                    + i as u64 * self.size_of_partition_entry as u64,
+            ))?;
+            serialize_into(&mut writer, &partitions[i as usize])?;
+        }
+
+        Ok(())
+    }
+
     pub fn generate_crc32_checksum(mut self) -> u32 {
         self.crc32_checksum = 0;
         let data = serialize(&self).expect("could not serialize");
@@ -133,7 +159,7 @@ impl GPTHeader {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PartitionName(String);
 
 impl PartitionName {
@@ -199,7 +225,7 @@ impl Serialize for PartitionName {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct GPTPartitionEntry {
     pub partition_type_guid: [u8; 16],
     pub unique_parition_guid: [u8; 16],
@@ -226,7 +252,7 @@ impl GPTPartitionEntry {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GPT {
     pub sector_size: u64,
     pub header: GPTHeader,
@@ -279,6 +305,46 @@ impl GPT {
             InvalidSignature => Self::read_from(&mut reader, 4096),
             err => Err(err),
         })
+    }
+
+    fn update_last_usable_lba<S: ?Sized>(&mut self, seeker: &mut S) -> Result<(), Error>
+    where
+        S: Seek,
+    {
+        let len = seeker.seek(SeekFrom::End(0))?;
+        self.header.last_usable_lba = (len
+            - self.header.number_of_partition_entries as u64
+                * self.header.size_of_partition_entry as u64)
+            / self.sector_size
+            - 1
+            - 1;
+
+        Ok(())
+    }
+
+    pub fn write_into<W: ?Sized>(&mut self, mut writer: &mut W) -> Result<(), Error>
+    where
+        W: Write + Seek,
+    {
+        self.update_last_usable_lba(&mut writer)?;
+        if self.header.partition_entry_lba != 2 {
+            self.header.partition_entry_lba = self.header.last_usable_lba + 1;
+        }
+
+        let mut backup = self.header.clone();
+        backup.primary_lba = self.header.backup_lba;
+        backup.backup_lba = self.header.primary_lba;
+        backup.partition_entry_lba = if self.header.partition_entry_lba == 2 {
+            self.header.last_usable_lba + 1
+        } else {
+            2
+        };
+
+        self.header
+            .write_into(&mut writer, self.sector_size, &self.partitions)?;
+        backup.write_into(&mut writer, self.sector_size, &self.partitions)?;
+
+        Ok(())
     }
 
     fn find_free_space(&self, size: u64) -> Vec<(u64, u64)> {
@@ -344,7 +410,7 @@ mod test {
     const DISK2: &'static str = "assets/disk2.img";
 
     #[test]
-    fn read_disks() {
+    fn read_header_and_partition_entries() {
         fn test(path: &str, ss: u64) {
             let mut f = fs::File::open(path).unwrap();
 
@@ -415,7 +481,7 @@ mod test {
     }
 
     #[test]
-    fn read_disks_gpt() {
+    fn read_and_find_from_primary() {
         assert!(GPT::read_from(&mut fs::File::open(DISK1).unwrap(), 512).is_ok());
         assert!(GPT::read_from(&mut fs::File::open(DISK1).unwrap(), 4096).is_err());
         assert!(GPT::read_from(&mut fs::File::open(DISK2).unwrap(), 512).is_err());
@@ -425,22 +491,24 @@ mod test {
     }
 
     #[test]
-    fn read_disks_gpt_from_backup() {
-        use std::io::Write;
-
+    fn find_backup() {
         fn test(path: &str, ss: u64) {
-            let disk1 = fs::read(path).unwrap();
-            let mut cur = io::Cursor::new(disk1);
+            let mut cur = io::Cursor::new(fs::read(path).unwrap());
             let mut gpt = GPT::read_from(&mut cur, ss).unwrap();
+            assert_eq!(gpt.header.partition_entry_lba, 2);
             gpt.header.crc32_checksum = 1;
             cur.seek(SeekFrom::Start(gpt.sector_size)).unwrap();
-            cur.write(&serialize(&gpt.header).unwrap()).unwrap();
+            serialize_into(&mut cur, &gpt.header).unwrap();
             let maybe_gpt = GPT::read_from(&mut cur, gpt.sector_size);
             assert!(maybe_gpt.is_ok());
             let gpt = maybe_gpt.unwrap();
             let end = cur.seek(SeekFrom::End(0)).unwrap() / gpt.sector_size - 1;
             assert_eq!(gpt.header.primary_lba, end);
             assert_eq!(gpt.header.backup_lba, 1);
+            assert_eq!(
+                gpt.header.partition_entry_lba,
+                gpt.header.last_usable_lba + 1
+            );
             assert!(GPT::find_from(&mut cur).is_ok());
         }
 
@@ -476,7 +544,7 @@ mod test {
     }
 
     #[test]
-    fn add_partition_in_the_table_and_sort() {
+    fn add_partition_and_sort() {
         let mut gpt = GPT::find_from(&mut fs::File::open(DISK1).unwrap()).unwrap();
 
         assert!(gpt
@@ -507,5 +575,64 @@ mod test {
                 .collect::<Vec<_>>(),
             vec!["Foo", "Baz", "Bar"]
         );
+    }
+
+    #[test]
+    fn write_from_primary() {
+        fn test(path: &str, ss: u64) {
+            let mut f = fs::File::open(path).unwrap();
+            let len = f.seek(SeekFrom::End(0)).unwrap();
+            let data = vec![0; len as usize];
+            let mut cur = io::Cursor::new(data);
+            let mut gpt = GPT::read_from(&mut f, ss).unwrap();
+            let backup_lba = gpt.header.backup_lba;
+            gpt.write_into(&mut cur).unwrap();
+            assert!(GPT::read_from(&mut cur, ss).is_ok());
+
+            gpt.header.crc32_checksum = 1;
+            cur.seek(SeekFrom::Start(ss)).unwrap();
+            serialize_into(&mut cur, &gpt.header).unwrap();
+            let maybe_gpt = GPT::read_from(&mut cur, ss);
+            assert!(maybe_gpt.is_ok());
+            let gpt = maybe_gpt.unwrap();
+            assert_eq!(gpt.header.primary_lba, backup_lba);
+            assert_eq!(gpt.header.backup_lba, 1);
+        }
+
+        test(DISK1, 512);
+        test(DISK2, 4096);
+    }
+
+    #[test]
+    fn write_from_backup() {
+        fn test(path: &str, ss: u64) {
+            let mut cur = io::Cursor::new(fs::read(path).unwrap());
+            let mut gpt = GPT::read_from(&mut cur, ss).unwrap();
+            gpt.header.crc32_checksum = 1;
+            let backup_lba = gpt.header.backup_lba;
+            cur.seek(SeekFrom::Start(ss)).unwrap();
+            serialize_into(&mut cur, &gpt.header).unwrap();
+            let mut gpt = GPT::read_from(&mut cur, ss).unwrap();
+            assert_eq!(gpt.header.backup_lba, 1);
+            let partition_entry_lba = gpt.header.partition_entry_lba;
+            gpt.write_into(&mut cur).unwrap();
+            let mut gpt = GPT::read_from(&mut cur, ss).unwrap();
+            assert_eq!(gpt.header.primary_lba, 1);
+            assert_eq!(gpt.header.backup_lba, backup_lba);
+            assert_eq!(gpt.header.partition_entry_lba, 2);
+
+            gpt.header.crc32_checksum = 1;
+            cur.seek(SeekFrom::Start(ss)).unwrap();
+            serialize_into(&mut cur, &gpt.header).unwrap();
+            let maybe_gpt = GPT::read_from(&mut cur, ss);
+            assert!(maybe_gpt.is_ok());
+            let gpt = maybe_gpt.unwrap();
+            assert_eq!(gpt.header.primary_lba, backup_lba);
+            assert_eq!(gpt.header.backup_lba, 1);
+            assert_eq!(gpt.header.partition_entry_lba, partition_entry_lba);
+        }
+
+        test(DISK1, 512);
+        test(DISK2, 4096);
     }
 }
