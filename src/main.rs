@@ -15,10 +15,26 @@ mod types;
 mod uuid;
 
 use self::gpt::*;
+use self::types::PartitionTypeGUID;
 use self::uuid::UUID;
 use std::fs;
 use std::io;
 use std::io::{Seek, SeekFrom, Write};
+
+const BYTE_UNITS: &'static [&'static str] = &["kB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
+
+macro_rules! format_bytes {
+    ($value:expr) => {
+        BYTE_UNITS
+            .iter()
+            .enumerate()
+            .map(|(i, u)| ($value / 1000_u64.pow(i as u32 + 1), u))
+            .take_while(|(i, _)| *i > 100)
+            .map(|(i, u)| format!("{} {}", i, u))
+            .last()
+            .unwrap_or(format!("{} B", $value))
+    };
+}
 
 fn ask(prompt: &str) -> io::Result<String> {
     print!("{} ", prompt);
@@ -87,15 +103,24 @@ fn print(path: &str) -> Result<(), Error> {
     );
     println!("Disk identifier: {}", gpt.header.disk_guid.display_uuid());
 
-    let mut table = table::Table::new(4);
+    let mut table = table::Table::new(6);
     table.add_cell_rtl("Start");
     table.add_cell_rtl("End");
     table.add_cell_rtl("Sectors");
+    table.add_cell_rtl("Size");
+    table.add_cell("Type");
     table.add_cell("Name");
     for p in gpt.partitions.iter().filter(|x| x.is_used()) {
         table.add_cell_rtl(&format!("{}", p.starting_lba));
         table.add_cell_rtl(&format!("{}", p.ending_lba));
         table.add_cell_rtl(&format!("{}", p.ending_lba - p.starting_lba));
+        table.add_cell_rtl(&format_bytes!(
+            (p.ending_lba - p.starting_lba) * gpt.sector_size
+        ));
+        table.add_cell(&format!(
+            "{}",
+            p.partition_type_guid.display_partition_type_guid()
+        ));
         table.add_cell(&format!("{}", p.partition_name.as_str()));
     }
     println!("{}", table);

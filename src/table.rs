@@ -33,6 +33,12 @@ impl Table {
 
 impl Display for Table {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+        assert_eq!(
+            self.cells.len() % self.columns,
+            0,
+            "not enough cells in the table"
+        );
+
         if self.cells.len() == 0 {
             return Ok(());
         }
@@ -72,7 +78,7 @@ impl Display for Table {
             if c == self.columns - 1 {
                 writeln!(f)?;
             } else {
-                write!(f, " ")?;
+                write!(f, "  ")?;
             }
         }
 

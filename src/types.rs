@@ -1,19 +1,26 @@
+use crate::uuid::UUID;
 use std::collections::HashMap;
 
 lazy_static! {
-    pub static ref HASHMAP: HashMap<&'static str, HashMap<[u8; 16], &'static str>> = {
+    pub static ref TYPE_MAP: HashMap<&'static str, HashMap<[u8; 16], &'static str>> = {
         fn to_array(uuid: &str) -> [u8; 16] {
             let mut arr = [0; 16];
-            for (i, v) in uuid
+            let mut digits: Vec<_> = uuid
                 .chars()
                 .filter(|&x| x != '-')
                 .collect::<Vec<_>>()
                 .chunks(2)
                 .map(|x| x.iter().collect::<String>())
                 .map(|x| u8::from_str_radix(x.as_str(), 16).unwrap())
-                .enumerate()
-            {
-                arr[i] = v;
+                .collect();
+            let mut reordered = Vec::new();
+            reordered.extend(digits.drain(..4).rev());
+            reordered.extend(digits.drain(..2).rev());
+            reordered.extend(digits.drain(..2).rev());
+            reordered.extend(digits.drain(..2));
+            reordered.extend(digits.drain(..));
+            for (e, v) in arr.iter_mut().zip(reordered.iter()) {
+                *e = *v;
             }
 
             arr
@@ -583,4 +590,18 @@ lazy_static! {
 
         cat
     };
+}
+
+pub trait PartitionTypeGUID {
+    fn display_partition_type_guid(&self) -> String;
+}
+
+impl PartitionTypeGUID for [u8; 16] {
+    fn display_partition_type_guid(&self) -> String {
+        TYPE_MAP
+            .iter()
+            .filter_map(|(cat, m)| m.get(self).map(|x| format!("{} / {}", cat, x)))
+            .next()
+            .unwrap_or_else(|| self.display_uuid())
+    }
 }
