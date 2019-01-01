@@ -8,14 +8,14 @@ extern crate crc;
 #[macro_use]
 extern crate log;
 extern crate env_logger;
-extern crate prettytable;
 
 mod gpt;
+mod table;
 mod types;
+mod uuid;
 
 use self::gpt::*;
-use prettytable::format::FormatBuilder;
-use prettytable::{Attr, Cell, Row, Table};
+use self::uuid::UUID;
 use std::fs;
 use std::io;
 use std::io::{Seek, SeekFrom, Write};
@@ -71,28 +71,6 @@ fn main() {
     }
 }
 
-trait UUID {
-    fn uuid(&self) -> String;
-}
-
-impl UUID for [u8; 16] {
-    fn uuid(&self) -> String {
-        let mut digits: Vec<_> = self.iter().collect();
-        let mut uuid: Vec<String> = Vec::new();
-        uuid.extend(digits.drain(..4).rev().map(|x| format!("{:02X}", x)));
-        uuid.push("-".to_string());
-        uuid.extend(digits.drain(..2).rev().map(|x| format!("{:02X}", x)));
-        uuid.push("-".to_string());
-        uuid.extend(digits.drain(..2).rev().map(|x| format!("{:02X}", x)));
-        uuid.push("-".to_string());
-        uuid.extend(digits.drain(..2).map(|x| format!("{:02X}", x)));
-        uuid.push("-".to_string());
-        uuid.extend(digits.drain(..).map(|x| format!("{:02X}", x)));
-
-        uuid.into_iter().collect()
-    }
-}
-
 fn print(path: &str) -> Result<(), Error> {
     debug!("opening GPT from: {:?}", path);
     let mut f = fs::File::open(path)?;
@@ -107,26 +85,20 @@ fn print(path: &str) -> Result<(), Error> {
         usable,
         usable * gpt.sector_size
     );
-    println!("Disk identifier: {}", gpt.header.disk_guid.uuid());
+    println!("Disk identifier: {}", gpt.header.disk_guid.display_uuid());
 
-    let mut table = Table::new();
-    let format = FormatBuilder::new().column_separator(' ').build();
-    table.set_format(format);
-    table.add_row(Row::new(vec![
-        Cell::new("start").with_style(Attr::Bold),
-        Cell::new("end").with_style(Attr::Bold),
-        Cell::new("sectors").with_style(Attr::Bold),
-        Cell::new("name").with_style(Attr::Bold),
-    ]));
+    let mut table = table::Table::new(4);
+    table.add_cell_rtl("Start");
+    table.add_cell_rtl("End");
+    table.add_cell_rtl("Sectors");
+    table.add_cell("Name");
     for p in gpt.partitions.iter().filter(|x| x.is_used()) {
-        table.add_row(Row::new(vec![
-            Cell::new(&format!("{}", p.starting_lba)),
-            Cell::new(&format!("{}", p.ending_lba)),
-            Cell::new(&format!("{}", p.ending_lba - p.starting_lba)),
-            Cell::new(p.partition_name.as_str()),
-        ]));
+        table.add_cell_rtl(&format!("{}", p.starting_lba));
+        table.add_cell_rtl(&format!("{}", p.ending_lba));
+        table.add_cell_rtl(&format!("{}", p.ending_lba - p.starting_lba));
+        table.add_cell(&format!("{}", p.partition_name.as_str()));
     }
-    table.printstd();
+    println!("{}", table);
 
     Ok(())
 }
