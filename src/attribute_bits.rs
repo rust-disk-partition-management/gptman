@@ -14,9 +14,9 @@ impl AttributeBits for u64 {
         let mut v = *self;
         for i in 0..64 {
             if v & 1 == 1 {
-                attributes.push(i + 1);
+                attributes.push(i);
             }
-            v = v.rotate_left(1);
+            v = v.rotate_right(1);
         }
 
         let mut s = String::new();
