@@ -9,11 +9,13 @@ extern crate crc;
 extern crate log;
 extern crate env_logger;
 
+mod attribute_bits;
 mod gpt;
 mod table;
 mod types;
 mod uuid;
 
+use self::attribute_bits::AttributeBits;
 use self::gpt::*;
 use self::types::PartitionTypeGUID;
 use self::uuid::UUID;
@@ -29,7 +31,7 @@ macro_rules! format_bytes {
             .iter()
             .enumerate()
             .map(|(i, u)| ($value / 1000_u64.pow(i as u32 + 1), u))
-            .take_while(|(i, _)| *i > 100)
+            .take_while(|(i, _)| *i > 10)
             .map(|(i, u)| format!("{} {}", i, u))
             .last()
             .unwrap_or(format!("{} B", $value))
@@ -95,7 +97,7 @@ fn print(path: &str) -> Result<(), Error> {
     let usable = gpt.header.last_usable_lba - gpt.header.first_usable_lba + 1;
 
     println!("Sector size: {} bytes", gpt.sector_size);
-    println!("Disk size: {} bytes", len);
+    println!("Disk size: {} ({} bytes)", format_bytes!(len), len);
     println!(
         "Usable sectors: {} ({} bytes)",
         usable,
@@ -103,12 +105,14 @@ fn print(path: &str) -> Result<(), Error> {
     );
     println!("Disk identifier: {}", gpt.header.disk_guid.display_uuid());
 
-    let mut table = table::Table::new(6);
+    let mut table = table::Table::new(8);
     table.add_cell_rtl("Start");
     table.add_cell_rtl("End");
     table.add_cell_rtl("Sectors");
     table.add_cell_rtl("Size");
     table.add_cell("Type");
+    table.add_cell("GUID");
+    table.add_cell("Attributes");
     table.add_cell("Name");
     for p in gpt.partitions.iter().filter(|x| x.is_used()) {
         table.add_cell_rtl(&format!("{}", p.starting_lba));
@@ -121,9 +125,15 @@ fn print(path: &str) -> Result<(), Error> {
             "{}",
             p.partition_type_guid.display_partition_type_guid()
         ));
+        table.add_cell(&format!("{}", p.unique_parition_guid.display_uuid()));
+        table.add_cell(&format!(
+            "{}",
+            p.attribute_bits
+                .display_attribute_bits(p.partition_type_guid)
+        ));
         table.add_cell(&format!("{}", p.partition_name.as_str()));
     }
-    println!("{}", table);
+    print!("{}", table);
 
     Ok(())
 }
