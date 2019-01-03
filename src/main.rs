@@ -77,7 +77,8 @@ fn main() {
                 } else if command != "" {
                     debug!("received command: {:?}", command);
                     match execute(command.as_str(), disk_path, len, &mut gpt, ask) {
-                        Ok(()) => {}
+                        Ok(false) => {}
+                        Ok(true) => break,
                         Err(err) => println!("{}", err),
                     }
                 }

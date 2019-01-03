@@ -15,9 +15,12 @@ pub enum Error {
     InvalidRevision,
     InvalidHeaderSize,
     InvalidChecksum(u32, u32),
+    InvalidPartitionEntryArrayChecksum(u32, u32),
     ReadError(Box<Error>, Box<Error>),
     NoSpaceLeft,
 }
+
+pub type Result<T> = std::result::Result<T, Error>;
 
 impl From<io::Error> for Error {
     fn from(err: io::Error) -> Error {
@@ -42,6 +45,11 @@ impl fmt::Display for Error {
             InvalidRevision => write!(f, "invalid revision"),
             InvalidHeaderSize => write!(f, "invalid header size"),
             InvalidChecksum(x, y) => write!(f, "corrupted CRC32 checksum ({} != {})", x, y),
+            InvalidPartitionEntryArrayChecksum(x, y) => write!(
+                f,
+                "corrupted partition entry array CRC32 checksum ({} != {})",
+                x, y
+            ),
             ReadError(x, y) => write!(
                 f,
                 "could not read primary header ({}) nor backup header ({})",
@@ -71,7 +79,7 @@ pub struct GPTHeader {
 }
 
 impl GPTHeader {
-    pub fn read_from<R: ?Sized>(mut reader: &mut R) -> Result<GPTHeader, Error>
+    pub fn read_from<R: ?Sized>(mut reader: &mut R) -> Result<GPTHeader>
     where
         R: Read + Seek,
     {
@@ -102,12 +110,12 @@ impl GPTHeader {
         mut writer: &mut W,
         sector_size: u64,
         partitions: &Vec<GPTPartitionEntry>,
-    ) -> Result<(), Error>
+    ) -> Result<()>
     where
         W: Write + Seek,
     {
-        self.update_crc32_checksum();
         self.update_partition_entry_array_crc32(partitions);
+        self.update_crc32_checksum();
 
         writer.seek(SeekFrom::Start(self.primary_lba * sector_size))?;
         serialize_into(&mut writer, &self)?;
@@ -184,7 +192,7 @@ impl<'de> Visitor<'de> for UTF16LEVisitor {
         formatter.write_str("36 UTF-16LE code units (72 bytes)")
     }
 
-    fn visit_seq<A>(self, mut seq: A) -> Result<PartitionName, A::Error>
+    fn visit_seq<A>(self, mut seq: A) -> std::result::Result<PartitionName, A::Error>
     where
         A: SeqAccess<'de>,
     {
@@ -204,7 +212,7 @@ impl<'de> Visitor<'de> for UTF16LEVisitor {
 }
 
 impl<'de> Deserialize<'de> for PartitionName {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
@@ -213,7 +221,7 @@ impl<'de> Deserialize<'de> for PartitionName {
 }
 
 impl Serialize for PartitionName {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
@@ -272,7 +280,7 @@ pub struct GPT {
 }
 
 impl GPT {
-    pub fn read_from<R: ?Sized>(mut reader: &mut R, sector_size: u64) -> Result<GPT, Error>
+    pub fn read_from<R: ?Sized>(mut reader: &mut R, sector_size: u64) -> Result<GPT>
     where
         R: Read + Seek,
     {
@@ -300,6 +308,14 @@ impl GPT {
             partitions.push(GPTPartitionEntry::read_from(&mut reader)?);
         }
 
+        let sum = header.generate_partition_entry_array_crc32(&partitions);
+        if header.partition_entry_array_crc32 != sum {
+            return Err(Error::InvalidPartitionEntryArrayChecksum(
+                header.partition_entry_array_crc32,
+                sum,
+            ));
+        }
+
         Ok(GPT {
             sector_size,
             header,
@@ -307,7 +323,7 @@ impl GPT {
         })
     }
 
-    pub fn find_from<R: ?Sized>(mut reader: &mut R) -> Result<GPT, Error>
+    pub fn find_from<R: ?Sized>(mut reader: &mut R) -> Result<GPT>
     where
         R: Read + Seek,
     {
@@ -319,7 +335,7 @@ impl GPT {
         })
     }
 
-    fn update_last_usable_lba<S: ?Sized>(&mut self, seeker: &mut S) -> Result<(), Error>
+    fn update_last_usable_lba<S: ?Sized>(&mut self, seeker: &mut S) -> Result<()>
     where
         S: Seek,
     {
@@ -334,7 +350,7 @@ impl GPT {
         Ok(())
     }
 
-    pub fn write_into<W: ?Sized>(&mut self, mut writer: &mut W) -> Result<(), Error>
+    pub fn write_into<W: ?Sized>(&mut self, mut writer: &mut W) -> Result<()>
     where
         W: Write + Seek,
     {
@@ -392,7 +408,7 @@ impl GPT {
         slots.first().map(|&(i, _)| i)
     }
 
-    pub fn get_maximum_partition_size(&self) -> Result<u64, Error> {
+    pub fn get_maximum_partition_size(&self) -> Result<u64> {
         let max = self
             .find_free_space(0)
             .iter()
@@ -685,6 +701,35 @@ mod test {
             assert_eq!(gpt.header.primary_lba, backup_lba);
             assert_eq!(gpt.header.backup_lba, 1);
             assert_eq!(gpt.header.partition_entry_lba, partition_entry_lba);
+        }
+
+        test(DISK1, 512);
+        test(DISK2, 4096);
+    }
+
+    #[test]
+    fn write_with_changes() {
+        fn test(path: &str, ss: u64) {
+            let mut f = fs::File::open(path).unwrap();
+            let len = f.seek(SeekFrom::End(0)).unwrap();
+            let data = vec![0; len as usize];
+            let mut cur = io::Cursor::new(data);
+            let mut gpt = GPT::read_from(&mut f, ss).unwrap();
+            let backup_lba = gpt.header.backup_lba;
+
+            gpt.remove(1);
+            gpt.write_into(&mut cur).unwrap();
+            let maybe_gpt = GPT::read_from(&mut cur, ss);
+            assert!(maybe_gpt.is_ok(), format!("{:?}", maybe_gpt.err()));
+
+            gpt.header.crc32_checksum = 1;
+            cur.seek(SeekFrom::Start(ss)).unwrap();
+            serialize_into(&mut cur, &gpt.header).unwrap();
+            let maybe_gpt = GPT::read_from(&mut cur, ss);
+            assert!(maybe_gpt.is_ok());
+            let gpt = maybe_gpt.unwrap();
+            assert_eq!(gpt.header.primary_lba, backup_lba);
+            assert_eq!(gpt.header.backup_lba, 1);
         }
 
         test(DISK1, 512);

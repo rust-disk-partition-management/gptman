@@ -6,11 +6,13 @@ pub mod error;
 mod fix_partitions_order;
 mod print;
 mod table;
+mod write;
 
 use self::add_partition::*;
 use self::delete_partition::*;
 use self::fix_partitions_order::*;
 use self::print::*;
+use self::write::*;
 
 use self::error::*;
 use crate::gpt::GPT;
@@ -30,7 +32,7 @@ pub fn format_bytes(value: u64) -> String {
         .unwrap_or(format!("{} B ", value))
 }
 
-pub fn execute<F>(full_command: &str, disk: &str, len: u64, gpt: &mut GPT, ask: F) -> Result<()>
+pub fn execute<F>(full_command: &str, disk: &str, len: u64, gpt: &mut GPT, ask: F) -> Result<bool>
 where
     F: Fn(&str) -> Result<String>,
 {
@@ -57,11 +59,14 @@ where
         delete_partition(gpt, ask)?;
     } else if command == "f" {
         fix_partitions_order(gpt);
+    } else if command == "w" {
+        write(gpt, disk)?;
+        return Ok(true);
     } else {
         println!("{}: unknown command", command);
     }
 
-    Ok(())
+    Ok(false)
 }
 
 pub fn open_and_print(path: &str) -> Result<()> {
