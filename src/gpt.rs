@@ -5,6 +5,7 @@ use serde::ser::{Serialize, SerializeTuple, Serializer};
 use std::fmt;
 use std::io;
 use std::io::{Read, Seek, SeekFrom, Write};
+use std::ops::{Index, IndexMut};
 
 #[derive(Debug)]
 pub enum Error {
@@ -53,11 +54,11 @@ impl fmt::Display for Error {
 
 #[derive(Debug, Deserialize, Serialize, Copy, Clone)]
 pub struct GPTHeader {
-    pub signature: [u8; 8],
-    pub revision: [u8; 4],
-    pub header_size: u32,
-    pub crc32_checksum: u32,
-    pub reserved: [u8; 4],
+    signature: [u8; 8],
+    revision: [u8; 4],
+    header_size: u32,
+    crc32_checksum: u32,
+    reserved: [u8; 4],
     pub primary_lba: u64,
     pub backup_lba: u64,
     pub first_usable_lba: u64,
@@ -65,8 +66,8 @@ pub struct GPTHeader {
     pub disk_guid: [u8; 16],
     pub partition_entry_lba: u64,
     pub number_of_partition_entries: u32,
-    pub size_of_partition_entry: u32,
-    pub partition_entry_array_crc32: u32,
+    size_of_partition_entry: u32,
+    partition_entry_array_crc32: u32,
 }
 
 impl GPTHeader {
@@ -236,6 +237,17 @@ pub struct GPTPartitionEntry {
 }
 
 impl GPTPartitionEntry {
+    pub fn empty() -> GPTPartitionEntry {
+        GPTPartitionEntry {
+            partition_type_guid: [0; 16],
+            unique_parition_guid: [0; 16],
+            starting_lba: 0,
+            ending_lba: 0,
+            attribute_bits: 0,
+            partition_name: "".into(),
+        }
+    }
+
     pub fn read_from<R: ?Sized>(mut reader: &mut R) -> bincode::Result<GPTPartitionEntry>
     where
         R: Read + Seek,
@@ -256,7 +268,7 @@ impl GPTPartitionEntry {
 pub struct GPT {
     pub sector_size: u64,
     pub header: GPTHeader,
-    pub partitions: Vec<GPTPartitionEntry>,
+    partitions: Vec<GPTPartitionEntry>,
 }
 
 impl GPT {
@@ -394,9 +406,37 @@ impl GPT {
         }
     }
 
-    pub fn sort_partitions(&mut self) {
+    pub fn sort(&mut self) {
         self.partitions
             .sort_by(|a, b| a.starting_lba.cmp(&b.starting_lba));
+    }
+
+    pub fn remove(&mut self, i: u32) {
+        assert!(i != 0, "invalid partition index: 0");
+        self.partitions[i as usize - 1] = GPTPartitionEntry::empty();
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (u32, &GPTPartitionEntry)> {
+        self.partitions
+            .iter()
+            .enumerate()
+            .map(|(i, x)| (i as u32 + 1, x))
+    }
+}
+
+impl Index<u32> for GPT {
+    type Output = GPTPartitionEntry;
+
+    fn index<'a>(&'a self, i: u32) -> &'a GPTPartitionEntry {
+        assert!(i != 0, "invalid partition index: 0");
+        &self.partitions[i as usize - 1]
+    }
+}
+
+impl IndexMut<u32> for GPT {
+    fn index_mut<'a>(&'a mut self, i: u32) -> &'a mut GPTPartitionEntry {
+        assert!(i != 0, "invalid partition index: 0");
+        &mut self.partitions[i as usize - 1]
     }
 }
 
@@ -564,7 +604,7 @@ mod test {
                 .collect::<Vec<_>>(),
             vec!["Foo", "Bar", "Baz"]
         );
-        gpt.sort_partitions();
+        gpt.sort();
         assert_eq!(
             gpt.partitions
                 .iter()
@@ -655,8 +695,8 @@ mod test {
     fn get_maximum_partition_size_on_empty_disk() {
         let mut gpt = GPT::find_from(&mut fs::File::open(DISK1).unwrap()).unwrap();
 
-        for partition in gpt.partitions.iter_mut() {
-            partition.partition_type_guid = [0; 16];
+        for i in 1..=gpt.header.number_of_partition_entries {
+            gpt.remove(i);
         }
 
         assert_eq!(gpt.get_maximum_partition_size().ok(), Some(33));

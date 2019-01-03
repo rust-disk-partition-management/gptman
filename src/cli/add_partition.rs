@@ -6,18 +6,16 @@ where
     F: Fn(&str) -> Result<String>,
 {
     let default_i = gpt
-        .partitions
         .iter()
-        .enumerate()
         .filter(|(_, x)| x.is_unused())
-        .map(|(i, _)| i + 1)
+        .map(|(i, _)| i)
         .next()
         .ok_or(Error::new("no available slot"))?;
     let max_size: u64 = gpt.get_maximum_partition_size()?;
 
     let i = ask_with_default!(
         ask,
-        |x| usize::from_str_radix(x, 10),
+        |x| u32::from_str_radix(x, 10),
         "Partition number",
         default_i
     )?;
@@ -41,7 +39,7 @@ where
         optimal_lba
     )?;
 
-    gpt.partitions[i - 1] = GPTPartitionEntry {
+    gpt[i] = GPTPartitionEntry {
         starting_lba,
         ending_lba: starting_lba + size - 1,
         attribute_bits: 0,

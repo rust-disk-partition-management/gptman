@@ -32,13 +32,8 @@ pub fn print(path: &str, gpt: &GPT, len: u64) -> Result<()> {
     table.add_cell("GUID");
     table.add_cell("Attributes");
     table.add_cell("Name");
-    for (i, p) in gpt
-        .partitions
-        .iter()
-        .enumerate()
-        .filter(|(_, x)| x.is_used())
-    {
-        table.add_cell(&format!("{}{}", path, i + 1));
+    for (i, p) in gpt.iter().filter(|(_, x)| x.is_used()) {
+        table.add_cell(&format!("{}{}", path, i));
         table.add_cell_rtl(&format!("{}", p.starting_lba));
         table.add_cell_rtl(&format!("{}", p.ending_lba));
         table.add_cell_rtl(&format!("{}", p.ending_lba - p.starting_lba + 1));
