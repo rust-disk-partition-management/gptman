@@ -1,9 +1,9 @@
-use self::attribute_bits::*;
-use self::table::*;
-use self::types::*;
-use self::uuid::*;
+use self::table::Table;
+use crate::attribute_bits::AttributeBits;
 use crate::cli::*;
 use crate::gpt::GPT;
+use crate::types::PartitionTypeGUID;
+use crate::uuid::UUID;
 
 pub fn print(path: &str, gpt: &GPT, len: u64) -> Result<()> {
     let usable = gpt.header.last_usable_lba - gpt.header.first_usable_lba + 1;

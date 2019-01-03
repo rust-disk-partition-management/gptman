@@ -1,13 +1,10 @@
 #[macro_use]
 mod macros;
 mod add_partition;
-mod attribute_bits;
 mod delete_partition;
 pub mod error;
 mod print;
 mod table;
-mod types;
-mod uuid;
 
 use self::add_partition::*;
 use self::delete_partition::*;

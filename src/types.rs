@@ -1,4 +1,4 @@
-use crate::cli::uuid::UUID;
+use crate::uuid::UUID;
 use std::collections::HashMap;
 
 lazy_static! {

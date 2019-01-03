@@ -14,6 +14,9 @@ extern crate linefeed;
 mod gpt;
 #[macro_use]
 mod cli;
+mod attribute_bits;
+mod types;
+mod uuid;
 
 use self::cli::error::*;
 use self::cli::*;
