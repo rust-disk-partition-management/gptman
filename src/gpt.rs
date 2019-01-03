@@ -15,7 +15,7 @@ pub enum Error {
     InvalidHeaderSize,
     InvalidChecksum(u32, u32),
     ReadError(Box<Error>, Box<Error>),
-    NoSlotFree,
+    NoSpaceLeft,
 }
 
 impl From<io::Error> for Error {
@@ -46,7 +46,7 @@ impl fmt::Display for Error {
                 "could not read primary header ({}) nor backup header ({})",
                 x, y
             ),
-            NoSlotFree => write!(f, "no slot free"),
+            NoSpaceLeft => write!(f, "no space left"),
         }
     }
 }
@@ -349,16 +349,17 @@ impl GPT {
 
     fn find_free_space(&self, size: u64) -> Vec<(u64, u64)> {
         let mut positions = Vec::new();
-        positions.push(self.header.first_usable_lba);
+        positions.push(self.header.first_usable_lba - 1);
         for partition in self.partitions.iter().filter(|x| x.is_used()) {
             positions.push(partition.starting_lba);
             positions.push(partition.ending_lba);
         }
-        positions.push(self.header.last_usable_lba);
+        positions.push(self.header.last_usable_lba + 1);
+        positions.sort();
 
         positions
             .chunks(2)
-            .map(|x| (x[0], x[1] - x[0]))
+            .map(|x| (x[0] + 1, x[1] - x[0] - 1))
             .filter(|(_, l)| *l >= size)
             .collect()
     }
@@ -379,19 +380,17 @@ impl GPT {
         slots.first().map(|&(i, _)| i)
     }
 
-    pub fn add_partition(&mut self, new: GPTPartitionEntry) -> Result<(), Error> {
-        if let Some((i, _)) = self
-            .partitions
+    pub fn get_maximum_partition_size(&self) -> Result<u64, Error> {
+        let max = self
+            .find_free_space(0)
             .iter()
-            .enumerate()
-            .filter(|(_, x)| x.is_unused())
-            .next()
-        {
-            self.partitions[i] = new;
-
-            Ok(())
+            .map(|(_, l)| *l)
+            .max()
+            .unwrap();
+        if max > 0 {
+            Ok(max)
         } else {
-            Err(Error::NoSlotFree)
+            Err(Error::NoSpaceLeft)
         }
     }
 
@@ -521,8 +520,8 @@ mod test {
         let gpt = GPT::find_from(&mut fs::File::open(DISK1).unwrap()).unwrap();
 
         assert_eq!(gpt.find_first_place(10000), None);
-        assert_eq!(gpt.find_first_place(5), Some(43));
-        assert_eq!(gpt.find_first_place(8), Some(52));
+        assert_eq!(gpt.find_first_place(4), Some(44));
+        assert_eq!(gpt.find_first_place(8), Some(53));
     }
 
     #[test]
@@ -530,7 +529,7 @@ mod test {
         let gpt = GPT::find_from(&mut fs::File::open(DISK2).unwrap()).unwrap();
 
         assert_eq!(gpt.find_last_place(10000), None);
-        assert_eq!(gpt.find_last_place(5), Some(89));
+        assert_eq!(gpt.find_last_place(5), Some(90));
         assert_eq!(gpt.find_last_place(20), Some(50));
     }
 
@@ -539,24 +538,23 @@ mod test {
         let gpt = GPT::find_from(&mut fs::File::open(DISK2).unwrap()).unwrap();
 
         assert_eq!(gpt.find_optimal_place(10000), None);
-        assert_eq!(gpt.find_optimal_place(5), Some(79));
-        assert_eq!(gpt.find_optimal_place(20), Some(15));
+        assert_eq!(gpt.find_optimal_place(5), Some(80));
+        assert_eq!(gpt.find_optimal_place(20), Some(16));
     }
 
     #[test]
-    fn add_partition_and_sort() {
+    fn sort_partitions() {
         let mut gpt = GPT::find_from(&mut fs::File::open(DISK1).unwrap()).unwrap();
 
-        assert!(gpt
-            .add_partition(GPTPartitionEntry {
-                starting_lba: gpt.find_first_place(5).unwrap(),
-                ending_lba: 5,
-                attribute_bits: 0,
-                partition_type_guid: [1; 16],
-                partition_name: "Baz".into(),
-                unique_parition_guid: [1; 16],
-            })
-            .is_ok());
+        let starting_lba = gpt.find_first_place(4).unwrap();
+        gpt.partitions[10] = GPTPartitionEntry {
+            starting_lba,
+            ending_lba: starting_lba + 3,
+            attribute_bits: 0,
+            partition_type_guid: [1; 16],
+            partition_name: "Baz".into(),
+            unique_parition_guid: [1; 16],
+        };
 
         assert_eq!(
             gpt.partitions
@@ -575,6 +573,23 @@ mod test {
                 .collect::<Vec<_>>(),
             vec!["Foo", "Baz", "Bar"]
         );
+    }
+
+    #[test]
+    fn add_partition_on_unsorted_table() {
+        let mut gpt = GPT::find_from(&mut fs::File::open(DISK1).unwrap()).unwrap();
+
+        let starting_lba = gpt.find_first_place(4).unwrap();
+        gpt.partitions[10] = GPTPartitionEntry {
+            starting_lba,
+            ending_lba: starting_lba + 3,
+            attribute_bits: 0,
+            partition_type_guid: [1; 16],
+            partition_name: "Baz".into(),
+            unique_parition_guid: [1; 16],
+        };
+
+        assert_eq!(gpt.find_first_place(8), Some(53));
     }
 
     #[test]
@@ -634,5 +649,29 @@ mod test {
 
         test(DISK1, 512);
         test(DISK2, 4096);
+    }
+
+    #[test]
+    fn get_maximum_partition_size_on_empty_disk() {
+        let mut gpt = GPT::find_from(&mut fs::File::open(DISK1).unwrap()).unwrap();
+
+        for partition in gpt.partitions.iter_mut() {
+            partition.partition_type_guid = [0; 16];
+        }
+
+        assert_eq!(gpt.get_maximum_partition_size().ok(), Some(33));
+    }
+
+    #[test]
+    fn get_maximum_partition_size_on_disk_full() {
+        let mut gpt = GPT::find_from(&mut fs::File::open(DISK1).unwrap()).unwrap();
+
+        for partition in gpt.partitions.iter_mut().skip(1) {
+            partition.partition_type_guid = [0; 16];
+        }
+        gpt.partitions[0].starting_lba = gpt.header.first_usable_lba;
+        gpt.partitions[0].ending_lba = gpt.header.last_usable_lba;;
+
+        assert!(gpt.get_maximum_partition_size().is_err());
     }
 }
