@@ -3,11 +3,13 @@ mod macros;
 mod add_partition;
 mod delete_partition;
 pub mod error;
+mod fix_partitions_order;
 mod print;
 mod table;
 
 use self::add_partition::*;
 use self::delete_partition::*;
+use self::fix_partitions_order::*;
 use self::print::*;
 
 use self::error::*;
@@ -53,6 +55,8 @@ where
         add_partition(gpt, ask)?;
     } else if command == "d" {
         delete_partition(gpt, ask)?;
+    } else if command == "f" {
+        fix_partitions_order(gpt);
     } else {
         println!("{}: unknown command", command);
     }
