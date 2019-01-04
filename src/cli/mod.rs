@@ -1,6 +1,7 @@
 #[macro_use]
 mod macros;
 mod add_partition;
+mod change_disk_guid;
 mod change_partition_guid;
 mod change_type;
 mod delete_partition;
@@ -11,6 +12,7 @@ mod table;
 mod write;
 
 use self::add_partition::*;
+use self::change_disk_guid::*;
 use self::change_partition_guid::*;
 use self::change_type::*;
 use self::delete_partition::*;
@@ -70,6 +72,8 @@ where
         change_type(gpt, ask)?;
     } else if command == "u" {
         change_partition_guid(gpt, ask)?;
+    } else if command == "i" {
+        change_disk_guid(gpt, ask)?;
     } else {
         println!("{}: unknown command", command);
     }

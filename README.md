@@ -22,7 +22,7 @@ Features
  *  [x] Change partition type (and list) (t)
  *  [ ] List free unpartitioned space (F)
  *  [ ] Help (m)
- *  [ ] Change disk GUID (i)
+ *  [x] Change disk GUID (i)
  *  [ ] Change partition name (L)
  *  [x] Change partition GUID (u)
  *  [ ] Toggle legacy BIOS bootable (A)
