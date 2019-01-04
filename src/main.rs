@@ -55,6 +55,7 @@ fn main() {
 
     if matches.is_present("print") {
         main_unwrap!(open_and_print(disk_path));
+        return;
     }
 
     let interface = Interface::new("gptman").expect("open terminal interface");
