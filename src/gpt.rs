@@ -299,7 +299,7 @@ impl GPT {
             })
         })?;
 
-        let mut partitions = Vec::new();
+        let mut partitions = Vec::with_capacity(header.number_of_partition_entries as usize);
         for i in 0..header.number_of_partition_entries {
             reader.seek(SeekFrom::Start(
                 header.partition_entry_lba * sector_size

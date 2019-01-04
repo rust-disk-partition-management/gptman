@@ -19,7 +19,7 @@ Features
  *  [ ] Resize a partition
  *  [ ] Copy/clone a partition from one disk and insert it to another
  *  [ ] Copy/clone metadata of a partition from one disk to another partition
- *  [ ] Change partition type (and list) (t)
+ *  [x] Change partition type (and list) (t)
  *  [ ] List free unpartitioned space (F)
  *  [ ] Help (m)
  *  [ ] Change disk GUID (i)

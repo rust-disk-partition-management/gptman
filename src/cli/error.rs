@@ -1,4 +1,5 @@
 use crate::gpt;
+use crate::uuid;
 use std::fmt;
 use std::io;
 
@@ -30,6 +31,12 @@ impl From<io::Error> for Error {
 
 impl From<gpt::Error> for Error {
     fn from(err: gpt::Error) -> Error {
+        Error(format!("{}", err))
+    }
+}
+
+impl From<uuid::Error> for Error {
+    fn from(err: uuid::Error) -> Error {
         Error(format!("{}", err))
     }
 }

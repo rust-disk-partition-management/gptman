@@ -1,6 +1,7 @@
 #[macro_use]
 mod macros;
 mod add_partition;
+mod change_type;
 mod delete_partition;
 pub mod error;
 mod fix_partitions_order;
@@ -9,6 +10,7 @@ mod table;
 mod write;
 
 use self::add_partition::*;
+use self::change_type::*;
 use self::delete_partition::*;
 use self::fix_partitions_order::*;
 use self::print::*;
@@ -32,7 +34,7 @@ pub fn format_bytes(value: u64) -> String {
         .unwrap_or(format!("{} B ", value))
 }
 
-pub fn execute<F>(full_command: &str, disk: &str, len: u64, gpt: &mut GPT, ask: F) -> Result<bool>
+pub fn execute<F>(full_command: &str, disk: &str, len: u64, gpt: &mut GPT, ask: &F) -> Result<bool>
 where
     F: Fn(&str) -> Result<String>,
 {
@@ -62,6 +64,8 @@ where
     } else if command == "w" {
         write(gpt, disk)?;
         return Ok(true);
+    } else if command == "t" {
+        change_type(gpt, ask)?;
     } else {
         println!("{}: unknown command", command);
     }

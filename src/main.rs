@@ -12,6 +12,7 @@ extern crate env_logger;
 extern crate linefeed;
 #[macro_use]
 extern crate nix;
+extern crate rand;
 
 mod gpt;
 #[macro_use]
@@ -79,7 +80,7 @@ fn main() {
                     break;
                 } else if command != "" {
                     debug!("received command: {:?}", command);
-                    match execute(command.as_str(), disk_path, len, &mut gpt, ask) {
+                    match execute(command.as_str(), disk_path, len, &mut gpt, &ask) {
                         Ok(false) => {}
                         Ok(true) => break,
                         Err(err) => println!("{}", err),
