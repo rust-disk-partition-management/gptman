@@ -13,6 +13,7 @@ where
         .next()
         .ok_or(Error::new("no available slot"))?;
     let max_size: u64 = gpt.get_maximum_partition_size()?;
+    let default_unique_parition_guid = generate_random_uuid();
 
     let i = ask_with_default!(
         ask,
@@ -46,8 +47,7 @@ where
 
     let partition_name = ask("Partition name:")?.as_str().into();
 
-    let default_unique_parition_guid = generate_random_uuid();
-    let unique_parition_guid = match ask("Partition GUID:")?.as_ref() {
+    let unique_parition_guid = match ask("Partition GUID (default: random):")?.as_ref() {
         "" => default_unique_parition_guid,
         x => convert_str_to_array(x)?,
     };

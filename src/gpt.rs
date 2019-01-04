@@ -2,6 +2,7 @@ use bincode::{deserialize_from, serialize, serialize_into};
 use crc::{crc32, Hasher32};
 use serde::de::{Deserialize, Deserializer, SeqAccess, Visitor};
 use serde::ser::{Serialize, SerializeTuple, Serializer};
+use std::collections::HashSet;
 use std::fmt;
 use std::io;
 use std::io::{Read, Seek, SeekFrom, Write};
@@ -18,6 +19,7 @@ pub enum Error {
     InvalidPartitionEntryArrayChecksum(u32, u32),
     ReadError(Box<Error>, Box<Error>),
     NoSpaceLeft,
+    ConflictPartitionGUID,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -56,6 +58,7 @@ impl fmt::Display for Error {
                 x, y
             ),
             NoSpaceLeft => write!(f, "no space left"),
+            ConflictPartitionGUID => write!(f, "conflict of partition GUIDs"),
         }
     }
 }
@@ -350,10 +353,25 @@ impl GPT {
         Ok(())
     }
 
+    fn check_partition_guids(&self) -> Result<()> {
+        let guids: Vec<_> = self
+            .partitions
+            .iter()
+            .filter(|x| x.is_used())
+            .map(|x| x.unique_parition_guid)
+            .collect();
+        if guids.len() != guids.iter().collect::<HashSet<_>>().len() {
+            return Err(Error::ConflictPartitionGUID);
+        }
+
+        Ok(())
+    }
+
     pub fn write_into<W: ?Sized>(&mut self, mut writer: &mut W) -> Result<()>
     where
         W: Write + Seek,
     {
+        self.check_partition_guids()?;
         self.update_last_usable_lba(&mut writer)?;
         if self.header.partition_entry_lba != 2 {
             self.header.partition_entry_lba = self.header.last_usable_lba + 1;

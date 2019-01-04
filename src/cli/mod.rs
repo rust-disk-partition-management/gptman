@@ -1,6 +1,7 @@
 #[macro_use]
 mod macros;
 mod add_partition;
+mod change_partition_guid;
 mod change_type;
 mod delete_partition;
 pub mod error;
@@ -10,6 +11,7 @@ mod table;
 mod write;
 
 use self::add_partition::*;
+use self::change_partition_guid::*;
 use self::change_type::*;
 use self::delete_partition::*;
 use self::fix_partitions_order::*;
@@ -66,6 +68,8 @@ where
         return Ok(true);
     } else if command == "t" {
         change_type(gpt, ask)?;
+    } else if command == "u" {
+        change_partition_guid(gpt, ask)?;
     } else {
         println!("{}: unknown command", command);
     }
