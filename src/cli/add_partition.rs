@@ -40,7 +40,12 @@ where
     let last_lba = gpt.find_last_place(size).unwrap();
     let starting_lba = ask_with_default!(
         ask,
-        |x| u64::from_str_radix(x, 10),
+        |x| match x {
+            ">" => Ok(last_lba),
+            "<" => Ok(first_lba),
+            "^" => Ok(optimal_lba),
+            x => u64::from_str_radix(x, 10),
+        },
         &format!("Partition starting LBA (< {}, > {})", first_lba, last_lba),
         optimal_lba
     )?;
