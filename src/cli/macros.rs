@@ -11,13 +11,20 @@ macro_rules! main_unwrap {
 }
 
 macro_rules! ask_with_default {
-    ($ask:expr, $parser:expr, $prompt:expr, $default:expr) => {{
-        let input = $ask(&format!("{} (default {}):", $prompt, $default))?;
+    ($ask:expr, $parser:expr, $prompt:expr, $default:expr) => {
+        loop {
+            let input = $ask(&format!("{} (default {}):", $prompt, $default))?;
 
-        if input == "" {
-            Ok($default)
-        } else {
-            $parser(&input)
+            if input == "" {
+                break Ok($default);
+            } else {
+                match $parser(&input) {
+                    Err(err) => {
+                        println!("{}", err);
+                    }
+                    x => break x,
+                }
+            }
         }
-    }};
+    };
 }
