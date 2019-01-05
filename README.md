@@ -20,7 +20,7 @@ Features
  *  [ ] Copy/clone a partition from one disk and insert it to another
  *  [ ] Copy/clone metadata of a partition from one disk to another partition
  *  [x] Change partition type (and list) (t)
- *  [ ] List free unpartitioned space (F)
+ *  [x] List free unpartitioned space (F)
  *  [ ] Help (m)
  *  [x] Change disk GUID (i)
  *  [ ] Change partition name (L)

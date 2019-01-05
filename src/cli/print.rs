@@ -15,9 +15,22 @@ pub fn print(path: &str, gpt: &GPT, len: u64) -> Result<()> {
         gpt.header.first_usable_lba, gpt.header.last_usable_lba, usable,
     );
     println!(
+        "Free sectors: {}",
+        gpt.find_free_sectors()
+            .iter()
+            .map(|(i, l)| format!(
+                "{}-{} ({})",
+                i,
+                i + l - 1,
+                format_bytes(l * gpt.sector_size).trim()
+            ))
+            .collect::<Vec<_>>()
+            .join(", "),
+    );
+    println!(
         "Usable space: {} ({} bytes)",
         format_bytes(usable * gpt.sector_size),
-        usable * gpt.sector_size
+        usable * gpt.sector_size,
     );
     println!("Disk identifier: {}", gpt.header.disk_guid.display_uuid());
     println!();
@@ -38,7 +51,7 @@ pub fn print(path: &str, gpt: &GPT, len: u64) -> Result<()> {
         table.add_cell_rtl(&format!("{}", p.ending_lba));
         table.add_cell_rtl(&format!("{}", p.ending_lba - p.starting_lba + 1));
         table.add_cell_rtl(&format_bytes(
-            (p.ending_lba - p.starting_lba) * gpt.sector_size,
+            (p.ending_lba - p.starting_lba + 1) * gpt.sector_size,
         ));
         table.add_cell(&format!(
             "{}",

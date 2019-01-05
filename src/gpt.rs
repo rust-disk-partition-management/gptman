@@ -393,7 +393,7 @@ impl GPT {
         Ok(())
     }
 
-    fn find_free_space(&self, size: u64) -> Vec<(u64, u64)> {
+    pub fn find_free_sectors(&self) -> Vec<(u64, u64)> {
         let mut positions = Vec::new();
         positions.push(self.header.first_usable_lba - 1);
         for partition in self.partitions.iter().filter(|x| x.is_used()) {
@@ -406,29 +406,40 @@ impl GPT {
         positions
             .chunks(2)
             .map(|x| (x[0] + 1, x[1] - x[0] - 1))
-            .filter(|(_, l)| *l >= size)
+            .filter(|(_, l)| *l > 0)
             .collect()
     }
 
     pub fn find_first_place(&self, size: u64) -> Option<u64> {
-        self.find_free_space(size).first().map(|&(i, _)| i)
+        self.find_free_sectors()
+            .iter()
+            .filter(|(_, l)| *l >= size)
+            .next()
+            .map(|&(i, _)| i)
     }
 
     pub fn find_last_place(&self, size: u64) -> Option<u64> {
-        self.find_free_space(size)
+        self.find_free_sectors()
+            .iter()
+            .filter(|(_, l)| *l >= size)
             .last()
             .map(|&(i, l)| i + l - size)
     }
 
     pub fn find_optimal_place(&self, size: u64) -> Option<u64> {
-        let mut slots = self.find_free_space(size);
+        let mut slots = self
+            .find_free_sectors()
+            .iter()
+            .cloned()
+            .filter(|(_, l)| *l >= size)
+            .collect::<Vec<_>>();
         slots.sort_by(|(_, l1), (_, l2)| l1.cmp(l2));
         slots.first().map(|&(i, _)| i)
     }
 
     pub fn get_maximum_partition_size(&self) -> Result<u64> {
         let max = self
-            .find_free_space(0)
+            .find_free_sectors()
             .iter()
             .map(|(_, l)| *l)
             .max()
