@@ -27,6 +27,7 @@ pub struct Opt {
     #[structopt(
         short = "o",
         long = "output",
+        default_value = "Device,Start,End,Sectors,Size,Type,GUID,Attributes,Name",
         raw(use_delimiter = "true", possible_values = "&Column::variants()")
     )]
     pub columns: Vec<Column>,
