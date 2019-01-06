@@ -28,7 +28,7 @@ Features
  *  [x] Toggle legacy BIOS bootable (A)
  *  [x] Toggle no block IO protocol (B)
  *  [x] Toggle required partition flag (R)
- *  [ ] Toggle attributes (S)
+ *  [x] Toggle attributes (S)
  *  [x] Customize columns to print
  *  [ ] Print raw data from first sector (d)
  *  [ ] Print raw data of disklabel (D)

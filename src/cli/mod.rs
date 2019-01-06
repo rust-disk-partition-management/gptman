@@ -11,6 +11,7 @@ mod fix_partitions_order;
 mod opt;
 mod print;
 mod table;
+mod toggle_attributes;
 mod toggle_legacy_bootable;
 mod toggle_no_block_io;
 mod toggle_required;
@@ -24,6 +25,7 @@ use self::change_type::*;
 use self::delete_partition::*;
 use self::fix_partitions_order::*;
 use self::print::*;
+use self::toggle_attributes::*;
 use self::toggle_legacy_bootable::*;
 use self::toggle_no_block_io::*;
 use self::toggle_required::*;
@@ -93,6 +95,8 @@ where
         toggle_no_block_io(gpt, ask)?;
     } else if command == "R" {
         toggle_required(gpt, ask)?;
+    } else if command == "S" {
+        toggle_attributes(gpt, ask)?;
     } else {
         println!("{}: unknown command", command);
     }
