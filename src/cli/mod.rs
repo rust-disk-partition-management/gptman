@@ -3,6 +3,7 @@ mod macros;
 mod add_partition;
 mod change_disk_guid;
 mod change_partition_guid;
+mod change_partition_name;
 mod change_type;
 mod delete_partition;
 pub mod error;
@@ -15,6 +16,7 @@ mod write;
 use self::add_partition::*;
 use self::change_disk_guid::*;
 use self::change_partition_guid::*;
+use self::change_partition_name::*;
 use self::change_type::*;
 use self::delete_partition::*;
 use self::fix_partitions_order::*;
@@ -77,6 +79,8 @@ where
         change_partition_guid(gpt, ask)?;
     } else if command == "i" {
         change_disk_guid(gpt, ask)?;
+    } else if command == "L" {
+        change_partition_name(gpt, ask)?;
     } else {
         println!("{}: unknown command", command);
     }

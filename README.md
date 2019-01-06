@@ -23,7 +23,7 @@ Features
  *  [x] List free unpartitioned space (F)
  *  [ ] Help (m)
  *  [x] Change disk GUID (i)
- *  [ ] Change partition name (L)
+ *  [x] Change partition name (L)
  *  [x] Change partition GUID (u)
  *  [ ] Toggle legacy BIOS bootable (A)
  *  [ ] Toggle no block IO protocol (B)
