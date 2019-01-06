@@ -3,6 +3,7 @@ name = "gptman"
 version = "0.1.0"
 authors = ["Cecile Tonglet <cecile.tonglet@cecton.com>"]
 edition = "2018"
+description = "A GPT manager that allows you to copy partitions from one disk to another"
 
 [dependencies]
 lazy_static = "1.2.0"
@@ -19,3 +20,4 @@ clap = "2.32"
 linefeed = "0.5"
 nix = "0.12.0"
 rand = "0.6"
+structopt = "0.2"

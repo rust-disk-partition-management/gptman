@@ -7,12 +7,14 @@ extern crate serde_derive;
 extern crate crc;
 #[macro_use]
 extern crate log;
+#[macro_use]
 extern crate clap;
 extern crate env_logger;
 extern crate linefeed;
 #[macro_use]
 extern crate nix;
 extern crate rand;
+extern crate structopt;
 
 mod gpt;
 #[macro_use]
@@ -24,40 +26,19 @@ mod uuid;
 use self::cli::error::*;
 use self::cli::*;
 use self::gpt::GPT;
-use clap::{App, Arg};
 use linefeed::{Interface, ReadResult, Signal};
 use std::fs;
 use std::io::{Seek, SeekFrom};
-
-const NAME: &'static str = env!("CARGO_PKG_NAME");
-const DESCRIPTION: &'static str = env!("CARGO_PKG_DESCRIPTION");
-const VERSION: &'static str = env!("CARGO_PKG_VERSION");
-const AUTHORS: &'static str = env!("CARGO_PKG_AUTHORS");
+use std::path::PathBuf;
+use structopt::StructOpt;
 
 fn main() {
-    let matches = App::new(NAME)
-        .version(VERSION)
-        .author(AUTHORS)
-        .about(DESCRIPTION)
-        .arg(
-            Arg::with_name("print")
-                .short("p")
-                .long("print")
-                .help("Print the device's GPT and exit"),
-        )
-        .arg(
-            Arg::with_name("device")
-                .required(true)
-                .help("Device to open"),
-        )
-        .get_matches();
+    let opt = Opt::from_args();
 
     env_logger::init();
 
-    let disk_path = matches.value_of("device").unwrap();
-
-    if matches.is_present("print") {
-        main_unwrap!(open_and_print(disk_path));
+    if opt.print {
+        main_unwrap!(open_and_print(&opt, &opt.device));
         return;
     }
 
@@ -72,7 +53,7 @@ fn main() {
         }
     };
 
-    let (mut gpt, len) = main_unwrap!(open_disk(disk_path));
+    let (mut gpt, len) = main_unwrap!(open_disk(&opt.device));
     loop {
         match ask("Command (m for help):") {
             Ok(command) => {
@@ -80,7 +61,7 @@ fn main() {
                     break;
                 } else if command != "" {
                     debug!("received command: {:?}", command);
-                    match execute(command.as_str(), disk_path, len, &mut gpt, &ask) {
+                    match execute(command.as_str(), &opt, len, &mut gpt, &ask) {
                         Ok(false) => {}
                         Ok(true) => break,
                         Err(err) => println!("{}", err),
@@ -95,7 +76,7 @@ fn main() {
     }
 }
 
-fn open_disk(path: &str) -> Result<(GPT, u64)> {
+fn open_disk(path: &PathBuf) -> Result<(GPT, u64)> {
     let mut f = fs::File::open(path)?;
     let gpt = GPT::find_from(&mut f)?;
     let len = f.seek(SeekFrom::End(0))?;

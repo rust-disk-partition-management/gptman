@@ -29,7 +29,7 @@ Features
  *  [ ] Toggle no block IO protocol (B)
  *  [ ] Toggle required partition flag (R)
  *  [ ] Toggle attributes (S)
- *  [ ] Customize columns to print
+ *  [x] Customize columns to print
  *  [ ] Print raw data from first sector (d)
  *  [ ] Print raw data of disklabel (D)
  *  [x] Call ioctl to re-read the partition table

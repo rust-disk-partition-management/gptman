@@ -7,6 +7,7 @@ mod change_type;
 mod delete_partition;
 pub mod error;
 mod fix_partitions_order;
+mod opt;
 mod print;
 mod table;
 mod write;
@@ -21,9 +22,11 @@ use self::print::*;
 use self::write::*;
 
 use self::error::*;
+pub use self::opt::*;
 use crate::gpt::GPT;
 use std::fs;
 use std::io::{Seek, SeekFrom};
+use std::path::PathBuf;
 
 const BYTE_UNITS: &'static [&'static str] = &["kB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
 
@@ -38,7 +41,7 @@ pub fn format_bytes(value: u64) -> String {
         .unwrap_or(format!("{} B ", value))
 }
 
-pub fn execute<F>(full_command: &str, disk: &str, len: u64, gpt: &mut GPT, ask: &F) -> Result<bool>
+pub fn execute<F>(full_command: &str, opt: &Opt, len: u64, gpt: &mut GPT, ask: &F) -> Result<bool>
 where
     F: Fn(&str) -> Result<String>,
 {
@@ -50,10 +53,10 @@ where
 
     if command == "p" {
         if args.is_empty() {
-            print(disk, gpt, len)?;
+            print(&opt, &opt.device, gpt, len)?;
         } else {
             for path in args {
-                match open_and_print(path) {
+                match open_and_print(&opt, &path.into()) {
                     Ok(()) => {}
                     Err(err) => println!("could not open {:?}: {}", path, err),
                 }
@@ -66,7 +69,7 @@ where
     } else if command == "f" {
         fix_partitions_order(gpt);
     } else if command == "w" {
-        write(gpt, disk)?;
+        write(gpt, &opt.device)?;
         return Ok(true);
     } else if command == "t" {
         change_type(gpt, ask)?;
@@ -81,11 +84,11 @@ where
     Ok(false)
 }
 
-pub fn open_and_print(path: &str) -> Result<()> {
+pub fn open_and_print(opt: &Opt, path: &PathBuf) -> Result<()> {
     debug!("opening GPT from: {:?}", path);
     let mut f = fs::File::open(path)?;
     let len = f.seek(SeekFrom::End(0))?;
     let gpt = GPT::find_from(&mut f)?;
 
-    print(path, &gpt, len)
+    print(opt, path, &gpt, len)
 }

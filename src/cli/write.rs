@@ -4,13 +4,14 @@ use std::fs;
 use std::fs::OpenOptions;
 use std::os::linux::fs::MetadataExt;
 use std::os::unix::io::IntoRawFd;
+use std::path::PathBuf;
 
 ioctl_none!(reread_partition_table, 0x12, 95);
 
 const S_IFMT: u32 = 0o00170000;
 const S_IFBLK: u32 = 0o0060000;
 
-pub fn write(gpt: &mut GPT, path: &str) -> Result<()> {
+pub fn write(gpt: &mut GPT, path: &PathBuf) -> Result<()> {
     let mut options = OpenOptions::new();
     options.write(true);
     let mut f = options.open(path)?;
