@@ -16,7 +16,7 @@ Features
  *  [ ] Create a new GPT on a disk
  *  [x] Insert a new partition in the table (n)
  *  [x] Delete a partition in the table (d)
- *  [ ] Resize a partition
+ *  [x] Resize a partition
  *  [ ] Copy/clone a partition from one disk and insert it to another
  *  [ ] Copy/clone metadata of a partition from one disk to another partition
  *  [x] Change partition type (and list) (t)
