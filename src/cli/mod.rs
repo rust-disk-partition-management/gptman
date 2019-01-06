@@ -11,6 +11,7 @@ mod fix_partitions_order;
 mod opt;
 mod print;
 mod table;
+mod toggle_legacy_bootable;
 mod write;
 
 use self::add_partition::*;
@@ -21,6 +22,7 @@ use self::change_type::*;
 use self::delete_partition::*;
 use self::fix_partitions_order::*;
 use self::print::*;
+use self::toggle_legacy_bootable::*;
 use self::write::*;
 
 use self::error::*;
@@ -81,6 +83,8 @@ where
         change_disk_guid(gpt, ask)?;
     } else if command == "L" {
         change_partition_name(gpt, ask)?;
+    } else if command == "A" {
+        toggle_legacy_bootable(gpt, ask)?;
     } else {
         println!("{}: unknown command", command);
     }
