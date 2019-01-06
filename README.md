@@ -26,7 +26,7 @@ Features
  *  [x] Change partition name (L)
  *  [x] Change partition GUID (u)
  *  [x] Toggle legacy BIOS bootable (A)
- *  [ ] Toggle no block IO protocol (B)
+ *  [x] Toggle no block IO protocol (B)
  *  [ ] Toggle required partition flag (R)
  *  [ ] Toggle attributes (S)
  *  [x] Customize columns to print
