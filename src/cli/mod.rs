@@ -13,6 +13,7 @@ mod print;
 mod table;
 mod toggle_legacy_bootable;
 mod toggle_no_block_io;
+mod toggle_required;
 mod write;
 
 use self::add_partition::*;
@@ -25,6 +26,7 @@ use self::fix_partitions_order::*;
 use self::print::*;
 use self::toggle_legacy_bootable::*;
 use self::toggle_no_block_io::*;
+use self::toggle_required::*;
 use self::write::*;
 
 use self::error::*;
@@ -89,6 +91,8 @@ where
         toggle_legacy_bootable(gpt, ask)?;
     } else if command == "B" {
         toggle_no_block_io(gpt, ask)?;
+    } else if command == "R" {
+        toggle_required(gpt, ask)?;
     } else {
         println!("{}: unknown command", command);
     }
