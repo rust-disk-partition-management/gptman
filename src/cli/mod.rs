@@ -11,6 +11,7 @@ pub mod error;
 mod fix_partitions_order;
 mod opt;
 mod print;
+mod print_raw_data;
 mod resize_partition;
 mod table;
 mod toggle_attributes;
@@ -28,6 +29,7 @@ use self::copy_partition::*;
 use self::delete_partition::*;
 use self::fix_partitions_order::*;
 use self::print::*;
+use self::print_raw_data::*;
 use self::resize_partition::*;
 use self::toggle_attributes::*;
 use self::toggle_legacy_bootable::*;
@@ -39,7 +41,7 @@ use self::error::*;
 pub use self::opt::*;
 use crate::gpt::GPT;
 use std::fs;
-use std::io::{Seek, SeekFrom};
+use std::io::{Read, Seek, SeekFrom};
 use std::path::PathBuf;
 
 const BYTE_UNITS: &'static [&'static str] = &["kB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
@@ -105,6 +107,8 @@ where
         resize_partition(gpt, ask)?;
     } else if command == "c" {
         copy_partition(gpt, &opt.device, ask)?;
+    } else if command == "D" {
+        print_raw_data(gpt, &opt.device)?;
     } else {
         println!("{}: unknown command", command);
     }
@@ -169,4 +173,42 @@ where
     };
 
     Ok(i)
+}
+
+fn print_bytes<R>(reader: &mut R, limit: usize) -> Result<()>
+where
+    R: Read + Seek,
+{
+    let mut bytes_read = 0;
+    let mut pos = reader.seek(SeekFrom::Current(0))?;
+    let mut skipping = false;
+
+    while bytes_read < limit {
+        let mut data = vec![0; 16.min(limit - bytes_read)];
+        let len = reader.read(&mut data)?;
+        pos += len as u64;
+        bytes_read += len;
+
+        if data == [0; 16] {
+            if !skipping {
+                skipping = true;
+                println!("*");
+            }
+            continue;
+        } else {
+            skipping = false;
+        }
+
+        print!("{:08x}  ", pos);
+        let mut it = data.iter().take(len);
+        for b in it.by_ref().take(8) {
+            print!("{:02x} ", b);
+        }
+        for b in it.by_ref() {
+            print!(" {:02x}", b);
+        }
+        println!();
+    }
+
+    Ok(())
 }

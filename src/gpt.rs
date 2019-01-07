@@ -65,11 +65,11 @@ impl fmt::Display for Error {
 
 #[derive(Debug, Deserialize, Serialize, Copy, Clone)]
 pub struct GPTHeader {
-    signature: [u8; 8],
-    revision: [u8; 4],
-    header_size: u32,
-    crc32_checksum: u32,
-    reserved: [u8; 4],
+    pub signature: [u8; 8],
+    pub revision: [u8; 4],
+    pub header_size: u32,
+    pub crc32_checksum: u32,
+    pub reserved: [u8; 4],
     pub primary_lba: u64,
     pub backup_lba: u64,
     pub first_usable_lba: u64,
@@ -77,8 +77,8 @@ pub struct GPTHeader {
     pub disk_guid: [u8; 16],
     pub partition_entry_lba: u64,
     pub number_of_partition_entries: u32,
-    size_of_partition_entry: u32,
-    partition_entry_array_crc32: u32,
+    pub size_of_partition_entry: u32,
+    pub partition_entry_array_crc32: u32,
 }
 
 impl GPTHeader {

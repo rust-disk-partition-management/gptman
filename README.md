@@ -29,6 +29,5 @@ Features
  *  [x] Toggle required partition flag (R)
  *  [x] Toggle attributes (S)
  *  [x] Customize columns to print
- *  [ ] Print raw data from first sector (d)
- *  [ ] Print raw data of disklabel (D)
+ *  [x] Print raw data of disklabel (D)
  *  [x] Call ioctl to re-read the partition table
