@@ -21,6 +21,10 @@ where
         "Partition number",
         default_i
     )?;
+    if gpt[i].is_used() {
+        println!("WARNING: partition {} is going to be overwritten", i);
+    }
+
     let size = ask_with_default!(
         ask,
         |x| u64::from_str_radix(x, 10),

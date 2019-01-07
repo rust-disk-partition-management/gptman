@@ -5,6 +5,7 @@ mod change_disk_guid;
 mod change_partition_guid;
 mod change_partition_name;
 mod change_type;
+mod copy_partition;
 mod delete_partition;
 pub mod error;
 mod fix_partitions_order;
@@ -23,6 +24,7 @@ use self::change_disk_guid::*;
 use self::change_partition_guid::*;
 use self::change_partition_name::*;
 use self::change_type::*;
+use self::copy_partition::*;
 use self::delete_partition::*;
 use self::fix_partitions_order::*;
 use self::print::*;
@@ -101,6 +103,8 @@ where
         toggle_attributes(gpt, ask)?;
     } else if command == "r" {
         resize_partition(gpt, ask)?;
+    } else if command == "c" {
+        copy_partition(gpt, ask)?;
     } else {
         println!("{}: unknown command", command);
     }

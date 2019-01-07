@@ -317,6 +317,10 @@ impl GPTPartitionEntry {
     pub fn is_used(&self) -> bool {
         !self.is_unused()
     }
+
+    pub fn size(&self) -> u64 {
+        self.ending_lba - self.starting_lba + 1
+    }
 }
 
 #[derive(Debug, Clone)]
