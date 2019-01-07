@@ -104,7 +104,7 @@ where
     } else if command == "r" {
         resize_partition(gpt, ask)?;
     } else if command == "c" {
-        copy_partition(gpt, ask)?;
+        copy_partition(gpt, &opt.device, ask)?;
     } else {
         println!("{}: unknown command", command);
     }

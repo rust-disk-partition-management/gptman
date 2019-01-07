@@ -2,11 +2,15 @@ use crate::cli::*;
 use crate::gpt::GPT;
 use std::path::PathBuf;
 
-pub fn copy_partition<F>(dst_gpt: &mut GPT, ask: &F) -> Result<()>
+pub fn copy_partition<F>(dst_gpt: &mut GPT, dst_path: &PathBuf, ask: &F) -> Result<()>
 where
     F: Fn(&str) -> Result<String>,
 {
-    let src_path: PathBuf = ask("From disk:")?.as_str().into();
+    let src_path: PathBuf =
+        match ask(&format!("From disk (default {}):", dst_path.display()))?.as_str() {
+            "" => dst_path.clone(),
+            x => x.into(),
+        };
     let src_gpt = GPT::find_from(&mut fs::File::open(src_path)?)?;
 
     let src_i = ask_used_slot(&src_gpt, ask)?;

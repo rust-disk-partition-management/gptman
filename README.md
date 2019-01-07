@@ -18,7 +18,6 @@ Features
  *  [x] Delete a partition in the table (d)
  *  [x] Resize a partition
  *  [x] Copy/clone a partition from one disk and insert it to another (c)
- *  [ ] Copy/clone metadata of a partition from one disk to another partition
  *  [x] Change partition type (and list) (t)
  *  [x] List free unpartitioned space (F)
  *  [ ] Help (m)
