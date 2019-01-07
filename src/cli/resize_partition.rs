@@ -10,8 +10,7 @@ where
     let free_sectors = gpt.find_free_sectors();
     let mut p = &mut gpt[i];
 
-    let max_size: u64 = p.ending_lba - p.starting_lba
-        + 1
+    let max_size: u64 = p.size()
         + free_sectors
             .iter()
             .skip_while(|(i, _)| *i < p.starting_lba)

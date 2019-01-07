@@ -56,12 +56,8 @@ pub fn print(opt: &Opt, path: &PathBuf, gpt: &GPT, len: u64) -> Result<()> {
                 Column::Device => table.add_cell(&format!("{}{}", path.display(), i)),
                 Column::Start => table.add_cell_rtl(&format!("{}", p.starting_lba)),
                 Column::End => table.add_cell_rtl(&format!("{}", p.ending_lba)),
-                Column::Sectors => {
-                    table.add_cell_rtl(&format!("{}", p.ending_lba - p.starting_lba + 1))
-                }
-                Column::Size => table.add_cell_rtl(&format_bytes(
-                    (p.ending_lba - p.starting_lba + 1) * gpt.sector_size,
-                )),
+                Column::Sectors => table.add_cell_rtl(&format!("{}", p.size())),
+                Column::Size => table.add_cell_rtl(&format_bytes(p.size() * gpt.sector_size)),
                 Column::Type => table.add_cell(&format!(
                     "{}",
                     p.partition_type_guid.display_partition_type_guid()
