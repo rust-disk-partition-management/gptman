@@ -82,6 +82,31 @@ pub struct GPTHeader {
 }
 
 impl GPTHeader {
+    pub fn new_from<R>(reader: &mut R, sector_size: u64, disk_guid: [u8; 16]) -> Result<GPTHeader>
+    where
+        R: Read + Seek,
+    {
+        let mut gpt = GPTHeader {
+            signature: [0x45, 0x46, 0x49, 0x20, 0x50, 0x41, 0x52, 0x54],
+            revision: [0x00, 0x00, 0x01, 0x00],
+            header_size: 92,
+            crc32_checksum: 0,
+            reserved: [0; 4],
+            primary_lba: 1,
+            backup_lba: 0,
+            first_usable_lba: 0,
+            last_usable_lba: 0,
+            disk_guid,
+            partition_entry_lba: 2,
+            number_of_partition_entries: 128,
+            size_of_partition_entry: 128,
+            partition_entry_array_crc32: 0,
+        };
+        gpt.update_from(reader, sector_size)?;
+
+        Ok(gpt)
+    }
+
     pub fn read_from<R: ?Sized>(mut reader: &mut R) -> Result<GPTHeader>
     where
         R: Read + Seek,
@@ -168,6 +193,25 @@ impl GPTHeader {
 
     pub fn update_partition_entry_array_crc32(&mut self, partitions: &Vec<GPTPartitionEntry>) {
         self.partition_entry_array_crc32 = self.generate_partition_entry_array_crc32(partitions);
+    }
+
+    fn update_from<S: ?Sized>(&mut self, seeker: &mut S, sector_size: u64) -> Result<()>
+    where
+        S: Seek,
+    {
+        let len = seeker.seek(SeekFrom::End(0))?;
+        if self.primary_lba == 1 {
+            self.backup_lba = len / sector_size - 1;
+        } else {
+            self.primary_lba = len / sector_size - 1;
+        }
+        self.last_usable_lba = (len
+            - self.number_of_partition_entries as u64 * self.size_of_partition_entry as u64)
+            / sector_size
+            - 1
+            - 1;
+
+        Ok(())
     }
 }
 
@@ -283,6 +327,23 @@ pub struct GPT {
 }
 
 impl GPT {
+    pub fn new_from<R>(reader: &mut R, sector_size: u64, disk_guid: [u8; 16]) -> Result<GPT>
+    where
+        R: Read + Seek,
+    {
+        let header = GPTHeader::new_from(reader, sector_size, disk_guid)?;
+        let mut partitions = Vec::with_capacity(header.number_of_partition_entries as usize);
+        for _ in 0..header.number_of_partition_entries {
+            partitions.push(GPTPartitionEntry::empty());
+        }
+
+        Ok(GPT {
+            sector_size,
+            header,
+            partitions,
+        })
+    }
+
     pub fn read_from<R: ?Sized>(mut reader: &mut R, sector_size: u64) -> Result<GPT>
     where
         R: Read + Seek,
@@ -338,21 +399,6 @@ impl GPT {
         })
     }
 
-    fn update_last_usable_lba<S: ?Sized>(&mut self, seeker: &mut S) -> Result<()>
-    where
-        S: Seek,
-    {
-        let len = seeker.seek(SeekFrom::End(0))?;
-        self.header.last_usable_lba = (len
-            - self.header.number_of_partition_entries as u64
-                * self.header.size_of_partition_entry as u64)
-            / self.sector_size
-            - 1
-            - 1;
-
-        Ok(())
-    }
-
     fn check_partition_guids(&self) -> Result<()> {
         let guids: Vec<_> = self
             .partitions
@@ -372,7 +418,7 @@ impl GPT {
         W: Write + Seek,
     {
         self.check_partition_guids()?;
-        self.update_last_usable_lba(&mut writer)?;
+        self.header.update_from(&mut writer, self.sector_size)?;
         if self.header.partition_entry_lba != 2 {
             self.header.partition_entry_lba = self.header.last_usable_lba + 1;
         }
@@ -781,5 +827,19 @@ mod test {
         gpt.partitions[0].ending_lba = gpt.header.last_usable_lba;;
 
         assert!(gpt.get_maximum_partition_size().is_err());
+    }
+
+    #[test]
+    fn create_new_gpt() {
+        fn test(path: &str, ss: u64) {
+            let mut f = fs::File::open(path).unwrap();
+            let gpt1 = GPT::read_from(&mut f, ss).unwrap();
+            let gpt2 = GPT::new_from(&mut f, ss, [1; 16]).unwrap();
+            assert_eq!(gpt2.header.backup_lba, gpt1.header.backup_lba);
+            assert_eq!(gpt2.header.last_usable_lba, gpt1.header.last_usable_lba);
+        }
+
+        test(DISK1, 512);
+        test(DISK2, 4096);
     }
 }

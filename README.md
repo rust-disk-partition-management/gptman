@@ -13,7 +13,7 @@ Features
  *  [x] Calculates checksums
  *  [x] Write GPT from 512 bytes sector size disks
  *  [x] Write GPT from 4096 bytes sector size disks
- *  [ ] Create a new GPT on a disk
+ *  [ ] Create a new GPT on a disk (need ioctl to work first)
  *  [x] Insert a new partition in the table (n)
  *  [x] Delete a partition in the table (d)
  *  [x] Resize a partition
