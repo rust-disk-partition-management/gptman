@@ -120,3 +120,53 @@ pub fn open_and_print(opt: &Opt, path: &PathBuf) -> Result<()> {
 
     print(opt, path, &gpt, len)
 }
+
+fn ask_free_slot<F>(gpt: &GPT, ask: &F) -> Result<u32>
+where
+    F: Fn(&str) -> Result<String>,
+{
+    let default_i = gpt
+        .iter()
+        .filter(|(_, x)| x.is_unused())
+        .map(|(i, _)| i)
+        .next()
+        .ok_or(Error::new("no available slot"))?;
+
+    let i = ask_with_default!(
+        ask,
+        |x| u32::from_str_radix(x, 10),
+        "Enter free partition number",
+        default_i
+    )?;
+    if gpt[i].is_used() {
+        println!("WARNING: partition {} is going to be overwritten", i);
+    }
+
+    Ok(i)
+}
+
+fn ask_used_slot<F>(gpt: &GPT, ask: &F) -> Result<u32>
+where
+    F: Fn(&str) -> Result<String>,
+{
+    let default_i = gpt
+        .iter()
+        .filter(|(_, x)| x.is_used())
+        .map(|(i, _)| i)
+        .last()
+        .ok_or(Error::new("no partition found"))?;
+
+    let i = loop {
+        match ask_with_default!(
+            ask,
+            |x| u32::from_str_radix(x, 10),
+            "Enter used partition number",
+            default_i
+        )? {
+            i if gpt[i].is_unused() => println!("Partition number {} is not used", i),
+            i => break i,
+        }
+    };
+
+    Ok(i)
+}

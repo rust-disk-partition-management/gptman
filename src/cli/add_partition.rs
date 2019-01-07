@@ -6,24 +6,10 @@ pub fn add_partition<F>(gpt: &mut GPT, ask: &F) -> Result<()>
 where
     F: Fn(&str) -> Result<String>,
 {
-    let default_i = gpt
-        .iter()
-        .filter(|(_, x)| x.is_unused())
-        .map(|(i, _)| i)
-        .next()
-        .ok_or(Error::new("no available slot"))?;
     let max_size: u64 = gpt.get_maximum_partition_size()?;
     let default_unique_parition_guid = generate_random_uuid();
 
-    let i = ask_with_default!(
-        ask,
-        |x| u32::from_str_radix(x, 10),
-        "Partition number",
-        default_i
-    )?;
-    if gpt[i].is_used() {
-        println!("WARNING: partition {} is going to be overwritten", i);
-    }
+    let i = ask_free_slot(gpt, ask)?;
 
     let size = ask_with_default!(
         ask,
