@@ -438,17 +438,11 @@ impl GPT {
     }
 
     pub fn get_maximum_partition_size(&self) -> Result<u64> {
-        let max = self
-            .find_free_sectors()
+        self.find_free_sectors()
             .iter()
             .map(|(_, l)| *l)
             .max()
-            .unwrap();
-        if max > 0 {
-            Ok(max)
-        } else {
-            Err(Error::NoSpaceLeft)
-        }
+            .ok_or(Error::NoSpaceLeft)
     }
 
     pub fn sort(&mut self) {
