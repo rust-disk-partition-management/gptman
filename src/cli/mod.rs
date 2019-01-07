@@ -67,7 +67,9 @@ where
     debug!("command: {:?}", command);
     debug!("command arguments: {:?}", args);
 
-    if command == "p" {
+    if command == "m" {
+        help();
+    } else if command == "p" {
         if args.is_empty() {
             print(&opt, &opt.device, gpt, len)?;
         } else {
@@ -114,6 +116,27 @@ where
     }
 
     Ok(false)
+}
+
+fn help() {
+    println!("\nHelp:\n");
+    println!("  A   toggle the legacy BIOS bootable flag");
+    println!("  B   toggle the no block IO protocol flag");
+    println!("  c   copy a partition from another device (or the same)");
+    println!("  d   delete a partition");
+    println!("  D   print the raw data of the disklabel from the device");
+    println!("  f   fix partitions order");
+    println!("  i   change disk GUID");
+    println!("  L   change partition name");
+    println!("  n   add a new partition");
+    println!("  p   print the partition table");
+    println!("  r   resize a partition");
+    println!("  R   toggle the required partition flag");
+    println!("  S   toggle the GUID specific bits");
+    println!("  t   change a partition type");
+    println!("  u   change partition UUID");
+    println!("  w   write table to disk and exit");
+    println!();
 }
 
 pub fn open_and_print(opt: &Opt, path: &PathBuf) -> Result<()> {

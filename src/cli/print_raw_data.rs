@@ -17,7 +17,7 @@ pub fn print_raw_data(gpt: &GPT, path: &PathBuf) -> Result<()> {
         "GPT entries",
         gpt.header.partition_entry_lba * gpt.sector_size,
         gpt.header.number_of_partition_entries * gpt.header.size_of_partition_entry,
-    );
+    )?;
 
     Ok(())
 }
