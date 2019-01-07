@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/cecton/gptman.svg?branch=master)](https://travis-ci.org/cecton/gptman)
+
 gptman
 ======
 
