@@ -1,0 +1,17 @@
+sudo: false
+language: rust
+cache: cargo
+
+rust:
+  - stable
+
+before_script:
+  - rustup component add rustfmt-preview
+
+script:
+  - |
+      rustfmt --check **/*.rs &&
+      cargo build &&
+      cargo test &&
+      cargo bench &&
+      cargo doc
