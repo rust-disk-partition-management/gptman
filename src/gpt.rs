@@ -534,8 +534,8 @@ mod test {
     use super::*;
     use std::fs;
 
-    const DISK1: &'static str = "assets/disk1.img";
-    const DISK2: &'static str = "assets/disk2.img";
+    const DISK1: &'static str = "tests/fixtures/disk1.img";
+    const DISK2: &'static str = "tests/fixtures/disk2.img";
 
     #[test]
     fn read_header_and_partition_entries() {

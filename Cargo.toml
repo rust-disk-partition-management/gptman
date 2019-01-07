@@ -2,8 +2,17 @@
 name = "gptman"
 version = "0.1.0"
 authors = ["Cecile Tonglet <cecile.tonglet@cecton.com>"]
+license = "MIT"
 edition = "2018"
 description = "A GPT manager that allows you to copy partitions from one disk to another"
+repository = "https://github.com/cecton/gptman"
+homepage = "https://github.com/cecton/gptman"
+readme = "README.md"
+keywords = ["gpt", "partition", "table", "filesystem", "disk"]
+categories = ["command-line-utilities"]
+
+[badges]
+travis-ci = { repository = "cecton/gptman" }
 
 [dependencies]
 lazy_static = "1.2.0"
