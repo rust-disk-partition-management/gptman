@@ -2,11 +2,11 @@ use bincode::serialize_into;
 use bincode::Result;
 use std::io::{Seek, SeekFrom, Write};
 
-pub fn write_protective_mbr_into<W: ?Sized>(mut writer: &mut W) -> Result<()>
+pub fn write_protective_mbr_into<W: ?Sized>(mut writer: &mut W, sector_size: u64) -> Result<()>
 where
     W: Write + Seek,
 {
-    let size = writer.seek(SeekFrom::End(0))? / 512 - 1;
+    let size = writer.seek(SeekFrom::End(0))? / sector_size - 1;
     writer.seek(SeekFrom::Start(446))?;
     // partition 1
     writer.write(&[

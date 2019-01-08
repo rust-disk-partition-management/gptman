@@ -16,7 +16,7 @@ pub fn write(gpt: &mut GPT, opt: &Opt) -> Result<()> {
     gpt.write_into(&mut f)?;
 
     if opt.init {
-        write_protective_mbr_into(&mut f)?;
+        write_protective_mbr_into(&mut f, gpt.sector_size)?;
     }
 
     if fs::metadata(&opt.device)?.st_mode() & S_IFMT == S_IFBLK {
