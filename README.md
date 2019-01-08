@@ -15,7 +15,7 @@ Features
  *  [x] Calculates checksums
  *  [x] Write GPT from 512 bytes sector size disks
  *  [x] Write GPT from 4096 bytes sector size disks
- *  [ ] Create a new GPT on a disk (need ioctl to work first)
+ *  [x] Create a new GPT on a disk
  *  [x] Insert a new partition in the table (n)
  *  [x] Delete a partition in the table (d)
  *  [x] Resize a partition
@@ -33,3 +33,4 @@ Features
  *  [x] Customize columns to print
  *  [x] Print raw data of disklabel (D)
  *  [x] Call ioctl to re-read the partition table
+ *  [ ] Automatically determine the real block size for SSDs

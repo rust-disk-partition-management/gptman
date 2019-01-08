@@ -35,4 +35,8 @@ pub struct Opt {
     /// device to open
     #[structopt(name = "DEVICE", parse(from_os_str))]
     pub device: PathBuf,
+
+    /// initialize a new GPT on the disk
+    #[structopt(short = "i", long = "init")]
+    pub init: bool,
 }

@@ -199,17 +199,18 @@ impl GPTHeader {
     where
         S: Seek,
     {
+        let partition_array_size = ((self.number_of_partition_entries
+            * self.size_of_partition_entry) as f64
+            / sector_size as f64)
+            .ceil() as u64;
         let len = seeker.seek(SeekFrom::End(0))?;
         if self.primary_lba == 1 {
             self.backup_lba = len / sector_size - 1;
         } else {
             self.primary_lba = len / sector_size - 1;
         }
-        self.last_usable_lba = (len
-            - self.number_of_partition_entries as u64 * self.size_of_partition_entry as u64)
-            / sector_size
-            - 1
-            - 1;
+        self.last_usable_lba = len / sector_size - partition_array_size - 1 - 1;
+        self.first_usable_lba = self.partition_entry_lba + partition_array_size;
 
         Ok(())
     }
@@ -841,6 +842,7 @@ mod test {
             let gpt2 = GPT::new_from(&mut f, ss, [1; 16]).unwrap();
             assert_eq!(gpt2.header.backup_lba, gpt1.header.backup_lba);
             assert_eq!(gpt2.header.last_usable_lba, gpt1.header.last_usable_lba);
+            assert_eq!(gpt2.header.first_usable_lba, gpt1.header.first_usable_lba);
         }
 
         test(DISK1, 512);

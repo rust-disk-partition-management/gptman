@@ -87,7 +87,7 @@ where
     } else if command == "f" {
         fix_partitions_order(gpt);
     } else if command == "w" {
-        write(gpt, &opt.device)?;
+        write(gpt, &opt)?;
         return Ok(true);
     } else if command == "t" {
         change_type(gpt, ask)?;

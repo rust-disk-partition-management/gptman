@@ -41,6 +41,12 @@ impl From<uuid::Error> for Error {
     }
 }
 
+impl From<bincode::Error> for Error {
+    fn from(err: bincode::Error) -> Error {
+        Error(format!("{}", err))
+    }
+}
+
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.0)?;
