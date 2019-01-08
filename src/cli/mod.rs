@@ -28,7 +28,7 @@ use self::change_type::*;
 use self::copy_partition::*;
 use self::delete_partition::*;
 use self::fix_partitions_order::*;
-use self::print::*;
+pub use self::print::*;
 use self::print_raw_data::*;
 use self::resize_partition::*;
 use self::toggle_attributes::*;
@@ -139,7 +139,7 @@ fn help() {
     println!();
 }
 
-pub fn open_and_print(opt: &Opt, path: &PathBuf) -> Result<()> {
+fn open_and_print(opt: &Opt, path: &PathBuf) -> Result<()> {
     debug!("opening GPT from: {:?}", path);
     let mut f = fs::File::open(path)?;
     let len = f.seek(SeekFrom::End(0))?;

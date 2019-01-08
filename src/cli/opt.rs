@@ -39,4 +39,8 @@ pub struct Opt {
     /// initialize a new GPT on the disk
     #[structopt(short = "i", long = "init")]
     pub init: bool,
+
+    /// sector size
+    #[structopt(short = "b", long = "sector-size")]
+    pub sector_size: Option<u64>,
 }

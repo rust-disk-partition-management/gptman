@@ -33,7 +33,6 @@ use std::fs;
 use std::io::{Seek, SeekFrom};
 use std::os::linux::fs::MetadataExt;
 use std::os::unix::io::AsRawFd;
-use std::path::PathBuf;
 use structopt::StructOpt;
 
 ioctl_read_bad!(blksszget, 0x1268, u64);
@@ -47,7 +46,8 @@ fn main() {
     env_logger::init();
 
     if opt.print {
-        main_unwrap!(open_and_print(&opt, &opt.device));
+        let (gpt, len) = main_unwrap!(open_disk(&opt));
+        main_unwrap!(print(&opt, &opt.device, &gpt, len));
         return;
     }
 
@@ -63,9 +63,9 @@ fn main() {
     };
 
     let (mut gpt, len) = main_unwrap!(if opt.init {
-        new_gpt(&opt.device, &ask)
+        new_gpt(&opt, &ask)
     } else {
-        open_disk(&opt.device)
+        open_disk(&opt)
     });
 
     loop {
@@ -90,32 +90,38 @@ fn main() {
     }
 }
 
-fn open_disk(path: &PathBuf) -> Result<(GPT, u64)> {
-    let mut f = fs::File::open(path)?;
-    let gpt = GPT::find_from(&mut f)?;
+fn open_disk(opt: &Opt) -> Result<(GPT, u64)> {
+    let mut f = fs::File::open(&opt.device)?;
+    let gpt = if let Some(ss) = opt.sector_size {
+        GPT::read_from(&mut f, ss)?
+    } else {
+        GPT::find_from(&mut f)?
+    };
     let len = f.seek(SeekFrom::End(0))?;
 
     Ok((gpt, len))
 }
 
-fn new_gpt<F>(path: &PathBuf, ask: &F) -> Result<(GPT, u64)>
+fn new_gpt<F>(opt: &Opt, ask: &F) -> Result<(GPT, u64)>
 where
     F: Fn(&str) -> Result<String>,
 {
-    println!("Initializing a new GPT on {}...", path.display());
+    println!("Initializing a new GPT on {}...", opt.device.display());
 
-    let mut f = fs::File::open(&path)?;
+    let mut f = fs::File::open(&opt.device)?;
     let len = f.seek(SeekFrom::End(0))?;
-    let metadata = fs::metadata(&path).expect("could not get metadata");
+    let metadata = fs::metadata(&opt.device).expect("could not get metadata");
 
-    let mut sector_size = 512;
+    let mut sector_size = opt.sector_size.unwrap_or(512);
 
-    if metadata.st_mode() & S_IFMT == S_IFBLK {
-        println!("getting sector size from device");
-        match unsafe { blksszget(f.as_raw_fd(), &mut sector_size) } {
-            Err(err) => println!("ioctl call failed: {}", err),
-            Ok(0) => {}
-            Ok(x) => println!("ioctl returned error code: {}", x),
+    if opt.sector_size.is_none() {
+        if metadata.st_mode() & S_IFMT == S_IFBLK {
+            println!("getting sector size from device");
+            match unsafe { blksszget(f.as_raw_fd(), &mut sector_size) } {
+                Err(err) => println!("ioctl call failed: {}", err),
+                Ok(0) => {}
+                Ok(x) => println!("ioctl returned error code: {}", x),
+            }
         }
     }
 

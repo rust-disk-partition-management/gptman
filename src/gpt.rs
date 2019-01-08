@@ -203,13 +203,13 @@ impl GPTHeader {
             * self.size_of_partition_entry) as f64
             / sector_size as f64)
             .ceil() as u64;
-        let len = seeker.seek(SeekFrom::End(0))?;
+        let len = seeker.seek(SeekFrom::End(0))? / sector_size;
         if self.primary_lba == 1 {
-            self.backup_lba = len / sector_size - 1;
+            self.backup_lba = len - 1;
         } else {
-            self.primary_lba = len / sector_size - 1;
+            self.primary_lba = len - 1;
         }
-        self.last_usable_lba = len / sector_size - partition_array_size - 1 - 1;
+        self.last_usable_lba = len - partition_array_size - 1 - 1;
         self.first_usable_lba = self.partition_entry_lba + partition_array_size;
 
         Ok(())
