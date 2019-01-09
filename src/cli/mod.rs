@@ -15,6 +15,7 @@ mod print;
 mod print_raw_data;
 mod randomize;
 mod resize_partition;
+mod swap_partition_index;
 mod table;
 mod toggle_attributes;
 mod toggle_legacy_bootable;
@@ -35,6 +36,7 @@ pub use self::print::*;
 use self::print_raw_data::*;
 use self::randomize::*;
 use self::resize_partition::*;
+use self::swap_partition_index::*;
 use self::toggle_attributes::*;
 use self::toggle_legacy_bootable::*;
 use self::toggle_no_block_io::*;
@@ -119,6 +121,8 @@ where
         change_alignment(gpt, ask)?;
     } else if command == "Z" {
         randomize(gpt)?;
+    } else if command == "s" {
+        swap_partition_index(gpt, ask)?;
     } else {
         println!("{}: unknown command", command);
     }
@@ -141,6 +145,7 @@ fn help() {
     println!("  p   print the partition table");
     println!("  r   resize a partition");
     println!("  R   toggle the required partition flag");
+    println!("  s   swap partition indexes");
     println!("  S   toggle the GUID specific bits");
     println!("  t   change a partition type");
     println!("  u   change partition UUID");
@@ -206,6 +211,18 @@ where
     };
 
     Ok(i)
+}
+
+fn ask_partition<F>(ask: &F, prompt: &str) -> Result<u32>
+where
+    F: Fn(&str) -> Result<String>,
+{
+    Ok(loop {
+        match u32::from_str_radix(ask(prompt)?.as_ref(), 10) {
+            Err(err) => println!("{}", err),
+            Ok(i) => break i,
+        }
+    })
 }
 
 fn ask_starting_lba<F>(gpt: &GPT, ask: &F, size: u64) -> Result<u64>
