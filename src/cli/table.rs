@@ -39,7 +39,7 @@ impl Display for Table {
             "not enough cells in the table"
         );
 
-        if self.cells.len() == 0 {
+        if self.cells.is_empty() {
             return Ok(());
         }
 

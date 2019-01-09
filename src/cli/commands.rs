@@ -10,7 +10,7 @@ use std::fs;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::PathBuf;
 
-const BYTE_UNITS: &'static [&'static str] = &["kB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
+const BYTE_UNITS: &[&str] = &["kB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
 
 fn format_bytes(value: u64) -> String {
     BYTE_UNITS
@@ -20,7 +20,7 @@ fn format_bytes(value: u64) -> String {
         .take_while(|(i, _)| *i > 10)
         .map(|(i, u)| format!("{} {}", i, u))
         .last()
-        .unwrap_or(format!("{} B ", value))
+        .unwrap_or_else(|| format!("{} B ", value))
 }
 
 macro_rules! ask_with_default {
@@ -52,60 +52,43 @@ where
     debug!("command: {:?}", command);
     debug!("command arguments: {:?}", args);
 
-    if command == "m" {
-        help();
-    } else if command == "p" {
-        if args.is_empty() {
-            print(&opt, &opt.device, gpt, len)?;
-        } else {
-            for path in args {
-                match open_and_print(&opt, &path.into()) {
-                    Ok(()) => {}
-                    Err(err) => println!("could not open {:?}: {}", path, err),
+    match command {
+        "m" => help(),
+        "p" => {
+            if args.is_empty() {
+                print(&opt, &opt.device, gpt, len)?;
+            } else {
+                for path in args {
+                    match open_and_print(&opt, &path.into()) {
+                        Ok(()) => {}
+                        Err(err) => println!("could not open {:?}: {}", path, err),
+                    }
                 }
             }
         }
-    } else if command == "n" {
-        add_partition(gpt, ask)?;
-    } else if command == "d" {
-        delete_partition(gpt, ask)?;
-    } else if command == "f" {
-        fix_partitions_order(gpt);
-    } else if command == "w" {
-        write(gpt, &opt)?;
-        return Ok(true);
-    } else if command == "t" {
-        change_type(gpt, ask)?;
-    } else if command == "u" {
-        change_partition_guid(gpt, ask)?;
-    } else if command == "i" {
-        change_disk_guid(gpt, ask)?;
-    } else if command == "L" {
-        change_partition_name(gpt, ask)?;
-    } else if command == "A" {
-        toggle_legacy_bootable(gpt, ask)?;
-    } else if command == "B" {
-        toggle_no_block_io(gpt, ask)?;
-    } else if command == "R" {
-        toggle_required(gpt, ask)?;
-    } else if command == "S" {
-        toggle_attributes(gpt, ask)?;
-    } else if command == "r" {
-        resize_partition(gpt, ask)?;
-    } else if command == "c" {
-        copy_partition(gpt, &opt.device, ask)?;
-    } else if command == "D" {
-        print_raw_data(gpt, &opt.device)?;
-    } else if command == "a" {
-        change_alignment(gpt, ask)?;
-    } else if command == "Z" {
-        randomize(gpt)?;
-    } else if command == "s" {
-        swap_partition_index(gpt, ask)?;
-    } else if command == "C" {
-        copy_all_partitions(gpt, &opt.device, ask)?;
-    } else {
-        println!("{}: unknown command", command);
+        "n" => add_partition(gpt, ask)?,
+        "d" => delete_partition(gpt, ask)?,
+        "f" => fix_partitions_order(gpt),
+        "w" => {
+            write(gpt, &opt)?;
+            return Ok(true);
+        }
+        "t" => change_type(gpt, ask)?,
+        "u" => change_partition_guid(gpt, ask)?,
+        "i" => change_disk_guid(gpt, ask)?,
+        "L" => change_partition_name(gpt, ask)?,
+        "A" => toggle_legacy_bootable(gpt, ask)?,
+        "B" => toggle_no_block_io(gpt, ask)?,
+        "R" => toggle_required(gpt, ask)?,
+        "S" => toggle_attributes(gpt, ask)?,
+        "r" => resize_partition(gpt, ask)?,
+        "c" => copy_partition(gpt, &opt.device, ask)?,
+        "D" => print_raw_data(gpt, &opt.device)?,
+        "a" => change_alignment(gpt, ask)?,
+        "Z" => randomize(gpt)?,
+        "s" => swap_partition_index(gpt, ask)?,
+        "C" => copy_all_partitions(gpt, &opt.device, ask)?,
+        x => println!("{}: unknown command", x),
     }
 
     Ok(false)
@@ -154,7 +137,7 @@ where
         .filter(|(_, x)| x.is_unused())
         .map(|(i, _)| i)
         .next()
-        .ok_or(Error::new("no available slot"))?;
+        .ok_or("no available slot")?;
 
     let i = ask_with_default!(
         ask,
@@ -178,7 +161,7 @@ where
         .filter(|(_, x)| x.is_used())
         .map(|(i, _)| i)
         .last()
-        .ok_or(Error::new("no partition found"))?;
+        .ok_or("no partition found")?;
 
     let i = loop {
         match ask_with_default!(
@@ -213,7 +196,7 @@ where
 {
     let optimal_lba = gpt
         .find_optimal_place(size)
-        .ok_or(Error::new("not enough space on device"))?;
+        .ok_or("not enough space on device")?;
     let first_lba = gpt.find_first_place(size).unwrap();
     let last_lba = gpt.find_last_place(size).unwrap();
 
@@ -341,19 +324,16 @@ pub fn print(opt: &Opt, path: &PathBuf, gpt: &GPT, len: u64) -> Result<()> {
                 Column::End => table.add_cell_rtl(&format!("{}", p.ending_lba)),
                 Column::Sectors => table.add_cell_rtl(&format!("{}", p.size())),
                 Column::Size => table.add_cell_rtl(&format_bytes(p.size() * gpt.sector_size)),
-                Column::Type => table.add_cell(&format!(
-                    "{}",
-                    p.partition_type_guid.display_partition_type_guid()
-                )),
-                Column::GUID => {
-                    table.add_cell(&format!("{}", p.unique_parition_guid.display_uuid()))
+                Column::Type => {
+                    table.add_cell(p.partition_type_guid.display_partition_type_guid().as_str())
                 }
-                Column::Attributes => table.add_cell(&format!(
-                    "{}",
+                Column::GUID => table.add_cell(p.unique_parition_guid.display_uuid().as_str()),
+                Column::Attributes => table.add_cell(
                     p.attribute_bits
                         .display_attribute_bits(p.partition_type_guid)
-                )),
-                Column::Name => table.add_cell(&format!("{}", p.partition_name.as_str())),
+                        .as_str(),
+                ),
+                Column::Name => table.add_cell(p.partition_name.as_str()),
             }
         }
     }
@@ -408,8 +388,8 @@ fn fix_partitions_order(gpt: &mut GPT) {
 
 ioctl_none!(reread_partition_table, 0x12, 95);
 
-const S_IFMT: u32 = 0o00170000;
-const S_IFBLK: u32 = 0o0060000;
+const S_IFMT: u32 = 0o170_000;
+const S_IFBLK: u32 = 0o60_000;
 
 fn write(gpt: &mut GPT, opt: &Opt) -> Result<()> {
     use std::os::linux::fs::MetadataExt;
@@ -602,7 +582,7 @@ where
             "" => return Ok(()),
             s => {
                 let attributes = s
-                    .split(",")
+                    .split(',')
                     .map(|x| u64::from_str_radix(x, 10))
                     .collect::<Vec<_>>();
 
@@ -642,8 +622,7 @@ where
             .iter()
             .skip_while(|(i, _)| *i < p.starting_lba)
             .take(1)
-            .filter(|(i, _)| *i == p.ending_lba + 1)
-            .next()
+            .find(|(i, _)| *i == p.ending_lba + 1)
             .map(|(_, l)| l)
             .unwrap_or(&0);
 

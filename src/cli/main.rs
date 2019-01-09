@@ -35,8 +35,8 @@ use structopt::StructOpt;
 
 ioctl_read_bad!(blksszget, 0x1268, u64);
 
-const S_IFMT: u32 = 0o00170000;
-const S_IFBLK: u32 = 0o0060000;
+const S_IFMT: u32 = 0o170_000;
+const S_IFBLK: u32 = 0o60_000;
 
 macro_rules! main_unwrap {
     ($e:expr) => {{
@@ -133,14 +133,12 @@ where
 
     let mut sector_size = opt.sector_size.unwrap_or(512);
 
-    if opt.sector_size.is_none() {
-        if metadata.st_mode() & S_IFMT == S_IFBLK {
-            println!("getting sector size from device");
-            match unsafe { blksszget(f.as_raw_fd(), &mut sector_size) } {
-                Err(err) => println!("ioctl call failed: {}", err),
-                Ok(0) => {}
-                Ok(x) => println!("ioctl returned error code: {}", x),
-            }
+    if opt.sector_size.is_none() && metadata.st_mode() & S_IFMT == S_IFBLK {
+        println!("getting sector size from device");
+        match unsafe { blksszget(f.as_raw_fd(), &mut sector_size) } {
+            Err(err) => println!("ioctl call failed: {}", err),
+            Ok(0) => {}
+            Ok(x) => println!("ioctl returned error code: {}", x),
         }
     }
 

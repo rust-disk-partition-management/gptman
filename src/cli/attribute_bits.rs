@@ -1,4 +1,4 @@
-const BASIC_DATA_PARTITION: &'static [u8; 16] = &[
+const BASIC_DATA_PARTITION: &[u8; 16] = &[
     0xA2, 0xA0, 0xD0, 0xEB, 0xE5, 0xB9, 0x33, 0x44, 0x87, 0xC0, 0x68, 0xB6, 0xB7, 0x26, 0x99, 0xC7,
 ];
 
@@ -26,10 +26,10 @@ impl AttributeBits for u64 {
                 x if x < 48 => format!("{}:Reserved", x),
                 x => match &type_guid {
                     BASIC_DATA_PARTITION => match a {
-                        60 => format!("60:ReadOnly"),
-                        61 => format!("61:ShadowCopy"),
-                        62 => format!("62:Hidden"),
-                        63 => format!("63:NoDriveLetter"),
+                        60 => "60:ReadOnly".to_string(),
+                        61 => "61:ShadowCopy".to_string(),
+                        62 => "62:Hidden".to_string(),
+                        63 => "63:NoDriveLetter".to_string(),
                         x => format!("{}", x),
                     },
                     _ => format!("{}", x),
