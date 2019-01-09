@@ -13,6 +13,7 @@ mod fix_partitions_order;
 mod opt;
 mod print;
 mod print_raw_data;
+mod randomize;
 mod resize_partition;
 mod table;
 mod toggle_attributes;
@@ -32,6 +33,7 @@ use self::delete_partition::*;
 use self::fix_partitions_order::*;
 pub use self::print::*;
 use self::print_raw_data::*;
+use self::randomize::*;
 use self::resize_partition::*;
 use self::toggle_attributes::*;
 use self::toggle_legacy_bootable::*;
@@ -115,6 +117,8 @@ where
         print_raw_data(gpt, &opt.device)?;
     } else if command == "a" {
         change_alignment(gpt, ask)?;
+    } else if command == "Z" {
+        randomize(gpt)?;
     } else {
         println!("{}: unknown command", command);
     }
@@ -141,6 +145,7 @@ fn help() {
     println!("  t   change a partition type");
     println!("  u   change partition UUID");
     println!("  w   write table to disk and exit");
+    println!("  Z   randomize disk GUID and all partition's GUID");
     println!();
 }
 

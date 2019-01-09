@@ -550,6 +550,13 @@ impl GPT {
             .enumerate()
             .map(|(i, x)| (i as u32 + 1, x))
     }
+
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = (u32, &mut GPTPartitionEntry)> {
+        self.partitions
+            .iter_mut()
+            .enumerate()
+            .map(|(i, x)| (i as u32 + 1, x))
+    }
 }
 
 impl Index<u32> for GPT {
