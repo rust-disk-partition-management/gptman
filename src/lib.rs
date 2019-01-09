@@ -75,7 +75,7 @@ impl fmt::Display for Error {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Copy, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct GPTHeader {
     pub signature: [u8; 8],
     pub revision: [u8; 4],
@@ -149,7 +149,7 @@ impl GPTHeader {
         &mut self,
         mut writer: &mut W,
         sector_size: u64,
-        partitions: &Vec<GPTPartitionEntry>,
+        partitions: &[GPTPartitionEntry],
     ) -> Result<()>
     where
         W: Write + Seek,
@@ -171,10 +171,11 @@ impl GPTHeader {
         Ok(())
     }
 
-    pub fn generate_crc32_checksum(mut self) -> u32 {
-        self.crc32_checksum = 0;
-        let data = serialize(&self).expect("could not serialize");
-        assert_eq!(data.len() as u32, self.header_size);
+    pub fn generate_crc32_checksum(&self) -> u32 {
+        let mut clone = self.clone();
+        clone.crc32_checksum = 0;
+        let data = serialize(&clone).expect("could not serialize");
+        assert_eq!(data.len() as u32, clone.header_size);
 
         crc32::checksum_ieee(&data)
     }
@@ -183,11 +184,9 @@ impl GPTHeader {
         self.crc32_checksum = self.generate_crc32_checksum();
     }
 
-    pub fn generate_partition_entry_array_crc32(
-        mut self,
-        partitions: &Vec<GPTPartitionEntry>,
-    ) -> u32 {
-        self.partition_entry_array_crc32 = 0;
+    pub fn generate_partition_entry_array_crc32(&self, partitions: &[GPTPartitionEntry]) -> u32 {
+        let mut clone = self.clone();
+        clone.partition_entry_array_crc32 = 0;
         let mut digest = crc32::Digest::new(crc32::IEEE);
         let mut wrote = 0;
         for x in partitions {
@@ -197,13 +196,13 @@ impl GPTHeader {
         }
         assert_eq!(
             wrote as u32,
-            self.size_of_partition_entry * self.number_of_partition_entries
+            clone.size_of_partition_entry * clone.number_of_partition_entries
         );
 
         digest.sum32()
     }
 
-    pub fn update_partition_entry_array_crc32(&mut self, partitions: &Vec<GPTPartitionEntry>) {
+    pub fn update_partition_entry_array_crc32(&mut self, partitions: &[GPTPartitionEntry]) {
         self.partition_entry_array_crc32 = self.generate_partition_entry_array_crc32(partitions);
     }
 
@@ -425,14 +424,14 @@ impl GPT {
         })
     }
 
-    fn find_alignment(header: &GPTHeader, partitions: &Vec<GPTPartitionEntry>) -> u64 {
+    fn find_alignment(header: &GPTHeader, partitions: &[GPTPartitionEntry]) -> u64 {
         let lbas = partitions
             .iter()
             .filter(|x| x.is_used())
             .map(|x| x.starting_lba)
             .collect::<Vec<_>>();
 
-        if lbas.len() == 0 {
+        if lbas.is_empty() {
             return DEFAULT_ALIGN;
         }
 
@@ -510,8 +509,7 @@ impl GPT {
     pub fn find_first_place(&self, size: u64) -> Option<u64> {
         self.find_free_sectors()
             .iter()
-            .filter(|(_, l)| *l >= size)
-            .next()
+            .find(|(_, l)| *l >= size)
             .map(|(i, _)| *i)
     }
 
@@ -574,14 +572,14 @@ impl GPT {
 impl Index<u32> for GPT {
     type Output = GPTPartitionEntry;
 
-    fn index<'a>(&'a self, i: u32) -> &'a GPTPartitionEntry {
+    fn index(&self, i: u32) -> &GPTPartitionEntry {
         assert!(i != 0, "invalid partition index: 0");
         &self.partitions[i as usize - 1]
     }
 }
 
 impl IndexMut<u32> for GPT {
-    fn index_mut<'a>(&'a mut self, i: u32) -> &'a mut GPTPartitionEntry {
+    fn index_mut(&mut self, i: u32) -> &mut GPTPartitionEntry {
         assert!(i != 0, "invalid partition index: 0");
         &mut self.partitions[i as usize - 1]
     }
@@ -592,8 +590,8 @@ mod test {
     use super::*;
     use std::fs;
 
-    const DISK1: &'static str = "tests/fixtures/disk1.img";
-    const DISK2: &'static str = "tests/fixtures/disk2.img";
+    const DISK1: &str = "tests/fixtures/disk1.img";
+    const DISK2: &str = "tests/fixtures/disk2.img";
 
     #[test]
     fn read_header_and_partition_entries() {
@@ -995,7 +993,7 @@ mod test {
                 ending_lba: 2 * align,
                 partition_name: "".into(),
                 partition_type_guid: [1; 16],
-                starting_lba: 1 * align,
+                starting_lba: align,
                 unique_parition_guid: [1; 16],
             };
             gpt[2] = GPTPartitionEntry {

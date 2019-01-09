@@ -11,7 +11,7 @@ before_script:
 script:
   - |
       rustfmt --check **/*.rs &&
-      cargo clippy --all-targets --all-features -- -D warnings &&
+      cargo clippy --all-targets --all-features &&
       cargo build &&
       cargo test &&
       cargo bench &&
