@@ -2,6 +2,7 @@ use bincode::{deserialize_from, serialize, serialize_into};
 use crc::{crc32, Hasher32};
 use serde::de::{Deserialize, Deserializer, SeqAccess, Visitor};
 use serde::ser::{Serialize, SerializeTuple, Serializer};
+use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::fmt;
 use std::io;
@@ -530,7 +531,12 @@ impl GPT {
 
     pub fn sort(&mut self) {
         self.partitions
-            .sort_by(|a, b| a.starting_lba.cmp(&b.starting_lba));
+            .sort_by(|a, b| match (a.is_used(), b.is_used()) {
+                (true, true) => a.starting_lba.cmp(&b.starting_lba),
+                (true, false) => Ordering::Less,
+                (false, true) => Ordering::Greater,
+                (false, false) => Ordering::Equal,
+            });
     }
 
     pub fn remove(&mut self, i: u32) {
@@ -756,7 +762,7 @@ mod test {
         gpt.align = 1;
 
         let starting_lba = gpt.find_first_place(4).unwrap();
-        gpt.partitions[10] = GPTPartitionEntry {
+        gpt[10] = GPTPartitionEntry {
             starting_lba,
             ending_lba: starting_lba + 3,
             attribute_bits: 0,
@@ -766,21 +772,19 @@ mod test {
         };
 
         assert_eq!(
-            gpt.partitions
-                .iter()
-                .filter(|x| x.is_used())
-                .map(|x| x.partition_name.as_str())
+            gpt.iter()
+                .filter(|(_, x)| x.is_used())
+                .map(|(i, x)| (i, x.partition_name.as_str()))
                 .collect::<Vec<_>>(),
-            vec!["Foo", "Bar", "Baz"]
+            vec![(1, "Foo"), (2, "Bar"), (10, "Baz")]
         );
         gpt.sort();
         assert_eq!(
-            gpt.partitions
-                .iter()
-                .filter(|x| x.is_used())
-                .map(|x| x.partition_name.as_str())
+            gpt.iter()
+                .filter(|(_, x)| x.is_used())
+                .map(|(i, x)| (i, x.partition_name.as_str()))
                 .collect::<Vec<_>>(),
-            vec!["Foo", "Baz", "Bar"]
+            vec![(1, "Foo"), (2, "Baz"), (3, "Bar")]
         );
     }
 
