@@ -1,10 +1,5 @@
 #[macro_use]
 extern crate lazy_static;
-extern crate bincode;
-extern crate serde;
-#[macro_use]
-extern crate serde_derive;
-extern crate crc;
 #[macro_use]
 extern crate log;
 #[macro_use]
@@ -13,21 +8,24 @@ extern crate env_logger;
 extern crate linefeed;
 #[macro_use]
 extern crate nix;
+extern crate gptman;
 extern crate rand;
 extern crate structopt;
 
-mod gpt;
-#[macro_use]
-mod cli;
 mod attribute_bits;
+mod commands;
+mod error;
+mod opt;
 mod protective_mbr;
+mod table;
 mod types;
 mod uuid;
 
-use self::cli::error::*;
-use self::cli::*;
-use self::gpt::GPT;
+use self::commands::{execute, print};
+use self::error::*;
+use self::opt::*;
 use self::uuid::generate_random_uuid;
+use gptman::GPT;
 use linefeed::{Interface, ReadResult, Signal};
 use std::fs;
 use std::io::{Seek, SeekFrom};
@@ -39,6 +37,18 @@ ioctl_read_bad!(blksszget, 0x1268, u64);
 
 const S_IFMT: u32 = 0o00170000;
 const S_IFBLK: u32 = 0o0060000;
+
+macro_rules! main_unwrap {
+    ($e:expr) => {{
+        match $e {
+            Ok(x) => x,
+            Err(err) => {
+                eprintln!("{}", err);
+                std::process::exit(1);
+            }
+        }
+    }};
+}
 
 fn main() {
     let opt = Opt::from_args();

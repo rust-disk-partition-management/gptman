@@ -1,3 +1,9 @@
+extern crate bincode;
+extern crate serde;
+#[macro_use]
+extern crate serde_derive;
+extern crate crc;
+
 use bincode::{deserialize_from, serialize, serialize_into};
 use crc::{crc32, Hasher32};
 use serde::de::{Deserialize, Deserializer, SeqAccess, Visitor};

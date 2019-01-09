@@ -11,6 +11,14 @@ readme = "README.md"
 keywords = ["gpt", "partition", "table", "filesystem", "disk"]
 categories = ["command-line-utilities"]
 
+[[bin]]
+name = "gptman"
+path = "src/cli/main.rs"
+doc = false
+
+[lib]
+name = "gptman"
+
 [badges]
 travis-ci = { repository = "cecton/gptman" }
 
