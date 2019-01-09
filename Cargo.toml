@@ -21,6 +21,9 @@ name = "gptman"
 
 [badges]
 travis-ci = { repository = "cecton/gptman" }
+is-it-maintained-issue-resolution = { repository = "cecton/gptman" }
+is-it-maintained-open-issues = { repository = "cecton/gptman" }
+maintenance = { status = "actively-developed" }
 
 [dependencies]
 lazy_static = "1.2.0"
