@@ -1,3 +1,5 @@
+#![deny(missing_docs)]
+
 extern crate bincode;
 extern crate serde;
 #[macro_use]
