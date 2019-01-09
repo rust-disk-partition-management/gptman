@@ -38,4 +38,4 @@ Features
  *  [x] Swap partition indexes (s)
  *  [x] Change partition alignment & auto-detect (a)
  *  [x] Randomize disk's GUID and all partition's GUID (Z)
- *  [ ] Copy/clone all partitions from one disk and insert it to another (c)
+ *  [x] Copy/clone all partitions from one disk and insert it to another (C)
