@@ -35,6 +35,8 @@ Features
  *  [x] Print raw data of disklabel (D)
  *  [x] Call ioctl to re-read the partition table
  *  [ ] Automatically determine the real block size for SSDs
+    (BLKDISCARD seems to make the process sees zeroes in the file even if the
+    call didn't really succeed... I can't fix that)
  *  [x] Swap partition indexes (s)
  *  [x] Change partition alignment & auto-detect (a)
  *  [x] Randomize disk's GUID and all partition's GUID (Z)
