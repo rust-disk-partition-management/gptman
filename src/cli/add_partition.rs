@@ -22,24 +22,7 @@ where
     }
 
     let partition_type_guid = ask_partition_type_guid(ask)?;
-
-    let optimal_lba = gpt
-        .find_optimal_place(size)
-        .ok_or(Error::new("not enough space on device"))?;
-    let first_lba = gpt.find_first_place(size).unwrap();
-    let last_lba = gpt.find_last_place(size).unwrap();
-    let starting_lba = ask_with_default!(
-        ask,
-        |x| match x {
-            ">" => Ok(last_lba),
-            "<" => Ok(first_lba),
-            "^" => Ok(optimal_lba),
-            x => u64::from_str_radix(x, 10),
-        },
-        &format!("Partition starting LBA (< {}, > {})", first_lba, last_lba),
-        optimal_lba
-    )?;
-
+    let starting_lba = ask_starting_lba(gpt, ask, size)?;
     let partition_name = ask("Partition name:")?.as_str().into();
 
     let unique_parition_guid = match ask("Partition GUID (default: random):")?.as_ref() {

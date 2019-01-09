@@ -1,6 +1,7 @@
 #[macro_use]
 mod macros;
 mod add_partition;
+mod change_alignment;
 mod change_disk_guid;
 mod change_partition_guid;
 mod change_partition_name;
@@ -21,6 +22,7 @@ mod toggle_required;
 mod write;
 
 use self::add_partition::*;
+use self::change_alignment::*;
 use self::change_disk_guid::*;
 use self::change_partition_guid::*;
 use self::change_partition_name::*;
@@ -111,6 +113,8 @@ where
         copy_partition(gpt, &opt.device, ask)?;
     } else if command == "D" {
         print_raw_data(gpt, &opt.device)?;
+    } else if command == "a" {
+        change_alignment(gpt, ask)?;
     } else {
         println!("{}: unknown command", command);
     }
@@ -120,6 +124,7 @@ where
 
 fn help() {
     println!("\nHelp:\n");
+    println!("  a   change partition alignment");
     println!("  A   toggle the legacy BIOS bootable flag");
     println!("  B   toggle the no block IO protocol flag");
     println!("  c   copy a partition from another device (or the same)");
@@ -196,6 +201,31 @@ where
     };
 
     Ok(i)
+}
+
+fn ask_starting_lba<F>(gpt: &GPT, ask: &F, size: u64) -> Result<u64>
+where
+    F: Fn(&str) -> Result<String>,
+{
+    let optimal_lba = gpt
+        .find_optimal_place(size)
+        .ok_or(Error::new("not enough space on device"))?;
+    let first_lba = gpt.find_first_place(size).unwrap();
+    let last_lba = gpt.find_last_place(size).unwrap();
+
+    let starting_lba = ask_with_default!(
+        ask,
+        |x| match x {
+            ">" => Ok(last_lba),
+            "<" => Ok(first_lba),
+            "^" => Ok(optimal_lba),
+            x => u64::from_str_radix(x, 10),
+        },
+        &format!("Partition starting LBA (< {}, > {})", first_lba, last_lba),
+        optimal_lba
+    )?;
+
+    Ok(starting_lba)
 }
 
 fn print_bytes<R>(reader: &mut R, limit: usize) -> Result<()>

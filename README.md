@@ -21,6 +21,7 @@ Features
  *  [x] Resize a partition
  *  [x] Copy/clone a partition from one disk and insert it to another (c)
  *  [x] Change partition type (and list) (t)
+ *  [x] Fix partitions order (f)
  *  [x] List free unpartitioned space (F)
  *  [x] Help (m)
  *  [x] Change disk GUID (i)
@@ -34,3 +35,7 @@ Features
  *  [x] Print raw data of disklabel (D)
  *  [x] Call ioctl to re-read the partition table
  *  [ ] Automatically determine the real block size for SSDs
+ *  [ ] Swap partition indexes (s)
+ *  [x] Change partition alignment & auto-detect (a)
+ *  [ ] Randomize disk's GUID and all partition's GUID ()
+ *  [ ] Copy/clone all partitions from one disk and insert it to another (c)

@@ -25,22 +25,7 @@ where
     }
     let size = size_in_bytes / dst_gpt.sector_size;
 
-    let optimal_lba = dst_gpt
-        .find_optimal_place(size)
-        .ok_or(Error::new("not enough space on device"))?;
-    let first_lba = dst_gpt.find_first_place(size).unwrap();
-    let last_lba = dst_gpt.find_last_place(size).unwrap();
-    let starting_lba = ask_with_default!(
-        ask,
-        |x| match x {
-            ">" => Ok(last_lba),
-            "<" => Ok(first_lba),
-            "^" => Ok(optimal_lba),
-            x => u64::from_str_radix(x, 10),
-        },
-        &format!("Partition starting LBA (< {}, > {})", first_lba, last_lba),
-        optimal_lba
-    )?;
+    let starting_lba = ask_starting_lba(dst_gpt, ask, size)?;
 
     dst_gpt[dst_i] = src_gpt[src_i].clone();
     dst_gpt[dst_i].starting_lba = starting_lba;

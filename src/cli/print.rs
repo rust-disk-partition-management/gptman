@@ -10,6 +10,11 @@ pub fn print(opt: &Opt, path: &PathBuf, gpt: &GPT, len: u64) -> Result<()> {
     let usable = gpt.header.last_usable_lba - gpt.header.first_usable_lba + 1;
 
     println!("Sector size: {} bytes", gpt.sector_size);
+    println!(
+        "Partition alignment: {} ({} bytes)",
+        gpt.align,
+        gpt.align * gpt.sector_size
+    );
     println!("Disk size: {} ({} bytes)", format_bytes(len), len);
     println!(
         "Usable sectors: {}-{} ({} sectors)",
@@ -35,6 +40,18 @@ pub fn print(opt: &Opt, path: &PathBuf, gpt: &GPT, len: u64) -> Result<()> {
     );
     println!("Disk identifier: {}", gpt.header.disk_guid.display_uuid());
     println!();
+
+    let misaligned = gpt
+        .iter()
+        .filter(|(_, x)| x.is_used() && x.starting_lba % gpt.align != 0)
+        .map(|(i, _)| format!("{}", i))
+        .collect::<Vec<_>>();
+    if !misaligned.is_empty() {
+        println!(
+            "WARNING: some partitions are not aligned: {}\n",
+            misaligned.join(", ")
+        );
+    }
 
     let mut table = Table::new(opt.columns.len());
     for column in opt.columns.iter() {

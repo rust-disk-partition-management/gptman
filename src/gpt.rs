@@ -8,6 +8,9 @@ use std::io;
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::ops::{Index, IndexMut};
 
+const DEFAULT_ALIGN: u64 = 2048;
+const MAX_ALIGN: u64 = 16384;
+
 #[derive(Debug)]
 pub enum Error {
     Deserialize(bincode::Error),
@@ -199,10 +202,10 @@ impl GPTHeader {
     where
         S: Seek,
     {
-        let partition_array_size = ((self.number_of_partition_entries
-            * self.size_of_partition_entry) as f64
-            / sector_size as f64)
-            .ceil() as u64;
+        let partition_array_size =
+            (self.number_of_partition_entries as u64 * self.size_of_partition_entry as u64 - 1)
+                / sector_size
+                + 1;
         let len = seeker.seek(SeekFrom::End(0))? / sector_size;
         if self.primary_lba == 1 {
             self.backup_lba = len - 1;
@@ -329,6 +332,7 @@ pub struct GPT {
     pub sector_size: u64,
     pub header: GPTHeader,
     partitions: Vec<GPTPartitionEntry>,
+    pub align: u64,
 }
 
 impl GPT {
@@ -346,6 +350,7 @@ impl GPT {
             sector_size,
             header,
             partitions,
+            align: DEFAULT_ALIGN,
         })
     }
 
@@ -385,10 +390,13 @@ impl GPT {
             ));
         }
 
+        let align = GPT::find_alignment(&header, &partitions);
+
         Ok(GPT {
             sector_size,
             header,
             partitions,
+            align,
         })
     }
 
@@ -402,6 +410,27 @@ impl GPT {
             InvalidSignature => Self::read_from(&mut reader, 4096),
             err => Err(err),
         })
+    }
+
+    fn find_alignment(header: &GPTHeader, partitions: &Vec<GPTPartitionEntry>) -> u64 {
+        let lbas = partitions
+            .iter()
+            .filter(|x| x.is_used())
+            .map(|x| x.starting_lba)
+            .collect::<Vec<_>>();
+
+        if lbas.len() == 0 {
+            return DEFAULT_ALIGN;
+        }
+
+        if lbas.len() == 1 && lbas[0] == header.first_usable_lba {
+            return 1;
+        }
+
+        (1..=MAX_ALIGN.min(*lbas.iter().max().unwrap_or(&1)))
+            .filter(|div| lbas.iter().all(|x| x % div == 0))
+            .max()
+            .unwrap()
     }
 
     fn check_partition_guids(&self) -> Result<()> {
@@ -445,6 +474,7 @@ impl GPT {
     }
 
     pub fn find_free_sectors(&self) -> Vec<(u64, u64)> {
+        assert!(self.align > 0, "align must be greater than 0");
         let mut positions = Vec::new();
         positions.push(self.header.first_usable_lba - 1);
         for partition in self.partitions.iter().filter(|x| x.is_used()) {
@@ -458,6 +488,9 @@ impl GPT {
             .chunks(2)
             .map(|x| (x[0] + 1, x[1] - x[0] - 1))
             .filter(|(_, l)| *l > 0)
+            .map(|(i, l)| (i, l, ((i - 1) / self.align + 1) * self.align - i))
+            .map(|(i, l, s)| (i + s, l.saturating_sub(s)))
+            .filter(|(_, l)| *l > 0)
             .collect()
     }
 
@@ -466,7 +499,7 @@ impl GPT {
             .iter()
             .filter(|(_, l)| *l >= size)
             .next()
-            .map(|&(i, _)| i)
+            .map(|(i, _)| *i)
     }
 
     pub fn find_last_place(&self, size: u64) -> Option<u64> {
@@ -474,14 +507,13 @@ impl GPT {
             .iter()
             .filter(|(_, l)| *l >= size)
             .last()
-            .map(|&(i, l)| i + l - size)
+            .map(|(i, l)| (i + l - size) / self.align * self.align)
     }
 
     pub fn find_optimal_place(&self, size: u64) -> Option<u64> {
         let mut slots = self
             .find_free_sectors()
-            .iter()
-            .cloned()
+            .into_iter()
             .filter(|(_, l)| *l >= size)
             .collect::<Vec<_>>();
         slots.sort_by(|(_, l1), (_, l2)| l1.cmp(l2));
@@ -490,8 +522,8 @@ impl GPT {
 
     pub fn get_maximum_partition_size(&self) -> Result<u64> {
         self.find_free_sectors()
-            .iter()
-            .map(|(_, l)| *l)
+            .into_iter()
+            .map(|(_, l)| l / self.align * self.align)
             .max()
             .ok_or(Error::NoSpaceLeft)
     }
@@ -647,7 +679,8 @@ mod test {
 
     #[test]
     fn add_partition_left() {
-        let gpt = GPT::find_from(&mut fs::File::open(DISK1).unwrap()).unwrap();
+        let mut gpt = GPT::find_from(&mut fs::File::open(DISK1).unwrap()).unwrap();
+        gpt.align = 1;
 
         assert_eq!(gpt.find_first_place(10000), None);
         assert_eq!(gpt.find_first_place(4), Some(44));
@@ -655,8 +688,21 @@ mod test {
     }
 
     #[test]
+    fn add_partition_left_aligned() {
+        let mut gpt = GPT::find_from(&mut fs::File::open(DISK1).unwrap()).unwrap();
+
+        gpt.align = 10000;
+        assert_eq!(gpt.find_first_place(1), None);
+        gpt.align = 4;
+        assert_eq!(gpt.find_first_place(4), Some(44));
+        gpt.align = 6;
+        assert_eq!(gpt.find_first_place(4), Some(54));
+    }
+
+    #[test]
     fn add_partition_right() {
-        let gpt = GPT::find_from(&mut fs::File::open(DISK2).unwrap()).unwrap();
+        let mut gpt = GPT::find_from(&mut fs::File::open(DISK2).unwrap()).unwrap();
+        gpt.align = 1;
 
         assert_eq!(gpt.find_last_place(10000), None);
         assert_eq!(gpt.find_last_place(5), Some(90));
@@ -664,8 +710,28 @@ mod test {
     }
 
     #[test]
+    fn add_partition_right_aligned() {
+        let mut gpt = GPT::find_from(&mut fs::File::open(DISK2).unwrap()).unwrap();
+
+        gpt.align = 10000;
+        assert_eq!(gpt.find_last_place(1), None);
+        gpt.align = 4;
+        assert_eq!(gpt.find_last_place(5), Some(88));
+        gpt.align = 8;
+        assert_eq!(gpt.find_last_place(20), Some(48));
+
+        // NOTE: special case where there is just enough space but it's not aligned
+        gpt.align = 1;
+        assert_eq!(gpt.find_last_place(54), Some(16));
+        assert_eq!(gpt.find_last_place(55), None);
+        gpt.align = 10;
+        assert_eq!(gpt.find_last_place(54), None);
+    }
+
+    #[test]
     fn add_partition_optimal() {
-        let gpt = GPT::find_from(&mut fs::File::open(DISK2).unwrap()).unwrap();
+        let mut gpt = GPT::find_from(&mut fs::File::open(DISK2).unwrap()).unwrap();
+        gpt.align = 1;
 
         assert_eq!(gpt.find_optimal_place(10000), None);
         assert_eq!(gpt.find_optimal_place(5), Some(80));
@@ -673,8 +739,21 @@ mod test {
     }
 
     #[test]
+    fn add_partition_optimal_aligned() {
+        let mut gpt = GPT::find_from(&mut fs::File::open(DISK2).unwrap()).unwrap();
+
+        gpt.align = 10000;
+        assert_eq!(gpt.find_optimal_place(1), None);
+        gpt.align = 6;
+        assert_eq!(gpt.find_optimal_place(5), Some(84));
+        gpt.align = 9;
+        assert_eq!(gpt.find_optimal_place(20), Some(18));
+    }
+
+    #[test]
     fn sort_partitions() {
         let mut gpt = GPT::find_from(&mut fs::File::open(DISK1).unwrap()).unwrap();
+        gpt.align = 1;
 
         let starting_lba = gpt.find_first_place(4).unwrap();
         gpt.partitions[10] = GPTPartitionEntry {
@@ -708,6 +787,7 @@ mod test {
     #[test]
     fn add_partition_on_unsorted_table() {
         let mut gpt = GPT::find_from(&mut fs::File::open(DISK1).unwrap()).unwrap();
+        gpt.align = 1;
 
         let starting_lba = gpt.find_first_place(4).unwrap();
         gpt.partitions[10] = GPTPartitionEntry {
@@ -813,6 +893,7 @@ mod test {
     #[test]
     fn get_maximum_partition_size_on_empty_disk() {
         let mut gpt = GPT::find_from(&mut fs::File::open(DISK1).unwrap()).unwrap();
+        gpt.align = 1;
 
         for i in 1..=gpt.header.number_of_partition_entries {
             gpt.remove(i);
@@ -824,6 +905,7 @@ mod test {
     #[test]
     fn get_maximum_partition_size_on_disk_full() {
         let mut gpt = GPT::find_from(&mut fs::File::open(DISK1).unwrap()).unwrap();
+        gpt.align = 1;
 
         for partition in gpt.partitions.iter_mut().skip(1) {
             partition.partition_type_guid = [0; 16];
@@ -832,6 +914,20 @@ mod test {
         gpt.partitions[0].ending_lba = gpt.header.last_usable_lba;;
 
         assert!(gpt.get_maximum_partition_size().is_err());
+    }
+
+    #[test]
+    fn get_maximum_partition_size_on_empty_disk_and_aligned() {
+        let mut gpt = GPT::find_from(&mut fs::File::open(DISK1).unwrap()).unwrap();
+
+        for i in 1..=gpt.header.number_of_partition_entries {
+            gpt.remove(i);
+        }
+
+        gpt.align = 10;
+        assert_eq!(gpt.get_maximum_partition_size().ok(), Some(20));
+        gpt.align = 6;
+        assert_eq!(gpt.get_maximum_partition_size().ok(), Some(30));
     }
 
     #[test]
@@ -847,5 +943,92 @@ mod test {
 
         test(DISK1, 512);
         test(DISK2, 4096);
+    }
+
+    #[test]
+    fn determine_partition_alignment_no_partition() {
+        fn test(ss: u64) {
+            let data = vec![0; ss as usize * DEFAULT_ALIGN as usize * 10];
+            let mut cur = io::Cursor::new(data);
+            let mut gpt = GPT::new_from(&mut cur, ss, [1; 16]).unwrap();
+            assert_eq!(gpt.align, DEFAULT_ALIGN);
+            gpt.write_into(&mut cur).unwrap();
+            let gpt = GPT::read_from(&mut cur, ss).unwrap();
+            assert_eq!(gpt.align, DEFAULT_ALIGN);
+        }
+
+        test(512);
+        test(4096);
+    }
+
+    #[test]
+    fn determine_partition_alignment() {
+        fn test(ss: u64, align: u64) {
+            let data = vec![0; ss as usize * align as usize * 10];
+            let mut cur = io::Cursor::new(data);
+            let mut gpt = GPT::new_from(&mut cur, ss, [1; 16]).unwrap();
+            gpt[1] = GPTPartitionEntry {
+                attribute_bits: 0,
+                ending_lba: 2 * align,
+                partition_name: "".into(),
+                partition_type_guid: [1; 16],
+                starting_lba: 1 * align,
+                unique_parition_guid: [1; 16],
+            };
+            gpt[2] = GPTPartitionEntry {
+                attribute_bits: 0,
+                ending_lba: 8 * align,
+                partition_name: "".into(),
+                partition_type_guid: [1; 16],
+                starting_lba: 4 * align,
+                unique_parition_guid: [2; 16],
+            };
+            gpt.write_into(&mut cur).unwrap();
+            let gpt = GPT::read_from(&mut cur, ss).unwrap();
+            assert_eq!(gpt.align, align);
+        }
+
+        test(512, 8); // 4096 bytes
+        test(512, 2048); // 1MB
+        test(512, 2048 * 4); // 4MB
+        test(4096, 8);
+        test(4096, 2048);
+        test(4096, 2048 * 4);
+    }
+
+    #[test]
+    fn determine_partition_alignment_full_disk() {
+        fn test(ss: u64) {
+            let data = vec![0; ss as usize * 100];
+            let mut cur = io::Cursor::new(data);
+            let mut gpt = GPT::new_from(&mut cur, ss, [1; 16]).unwrap();
+            gpt[1] = GPTPartitionEntry {
+                attribute_bits: 0,
+                ending_lba: gpt.header.last_usable_lba,
+                partition_name: "".into(),
+                partition_type_guid: [1; 16],
+                starting_lba: gpt.header.first_usable_lba,
+                unique_parition_guid: [1; 16],
+            };
+            gpt.write_into(&mut cur).unwrap();
+            let gpt = GPT::read_from(&mut cur, ss).unwrap();
+            assert_eq!(gpt.align, 1);
+
+            let mut gpt = GPT::new_from(&mut cur, ss, [1; 16]).unwrap();
+            gpt[1] = GPTPartitionEntry {
+                attribute_bits: 0,
+                ending_lba: gpt.header.last_usable_lba,
+                partition_name: "".into(),
+                partition_type_guid: [1; 16],
+                starting_lba: gpt.header.first_usable_lba + 1,
+                unique_parition_guid: [1; 16],
+            };
+            gpt.write_into(&mut cur).unwrap();
+            let gpt = GPT::read_from(&mut cur, ss).unwrap();
+            assert_eq!(gpt.align, gpt.header.first_usable_lba + 1);
+        }
+
+        test(512);
+        test(4096);
     }
 }

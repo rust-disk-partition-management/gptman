@@ -43,4 +43,8 @@ pub struct Opt {
     /// sector size
     #[structopt(short = "b", long = "sector-size")]
     pub sector_size: Option<u64>,
+
+    /// partition alignment
+    #[structopt(short = "a", long = "align")]
+    pub align: Option<u64>,
 }

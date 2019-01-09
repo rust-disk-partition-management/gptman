@@ -46,7 +46,12 @@ fn main() {
     env_logger::init();
 
     if opt.print {
-        let (gpt, len) = main_unwrap!(open_disk(&opt));
+        let (mut gpt, len) = main_unwrap!(open_disk(&opt));
+
+        if let Some(align) = opt.align {
+            gpt.align = align;
+        }
+
         main_unwrap!(print(&opt, &opt.device, &gpt, len));
         return;
     }
@@ -67,6 +72,10 @@ fn main() {
     } else {
         open_disk(&opt)
     });
+
+    if let Some(align) = opt.align {
+        gpt.align = align;
+    }
 
     loop {
         match ask("Command (m for help):") {
