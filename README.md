@@ -3,7 +3,7 @@
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](http://opensource.org/licenses/MIT)
 [![Docs.rs](https://docs.rs/gptman/badge.svg)](https://docs.rs/gptman)
 [![LOC](https://tokei.rs/b1/github/cecton/gptman)](https://github.com/cecton/gptman)
-[![Dependencies](https://deps.rs/repo/github/hyperium/hyper/status.svg)](https://github.com/cecton/gptman)
+[![Dependency Status](https://deps.rs/repo/github/cecton/gptman/status.svg)](https://deps.rs/repo/github/cecton/gptman)
 
 gptman
 ======
@@ -35,6 +35,29 @@ Features
  *  Swap partition indexes (s)
  *  Randomize disk's GUID and all partition's GUID (Z)
  *  Copy/clone all partitions from one disk and insert it to another (C)
+
+Installation
+------------
+
+ *  CLI:
+
+    ```
+    cargo install gptman
+    ```
+
+    Statically linked:
+
+    ```
+    cargo install --target=x86_64-unknown-linux-musl gptman
+    ```
+
+ *  Library:
+
+    Cargo.toml:
+    ```
+    [dependencies]
+    gptman = { version = "0.2.0", default-features = false }
+    ```
 
 Library Usage
 -------------
