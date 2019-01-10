@@ -1,33 +1,28 @@
 #[macro_use]
 extern crate lazy_static;
-extern crate bincode;
-extern crate serde;
-#[macro_use]
-extern crate serde_derive;
-extern crate crc;
-#[macro_use]
-extern crate log;
 #[macro_use]
 extern crate clap;
-extern crate env_logger;
 extern crate linefeed;
 #[macro_use]
 extern crate nix;
+extern crate gptman;
 extern crate rand;
 extern crate structopt;
 
-mod gpt;
-#[macro_use]
-mod cli;
 mod attribute_bits;
+mod commands;
+mod error;
+mod opt;
 mod protective_mbr;
+mod table;
 mod types;
 mod uuid;
 
-use self::cli::error::*;
-use self::cli::*;
-use self::gpt::GPT;
+use self::commands::{execute, print};
+use self::error::*;
+use self::opt::*;
 use self::uuid::generate_random_uuid;
+use gptman::GPT;
 use linefeed::{Interface, ReadResult, Signal};
 use std::fs;
 use std::io::{Seek, SeekFrom};
@@ -37,13 +32,23 @@ use structopt::StructOpt;
 
 ioctl_read_bad!(blksszget, 0x1268, u64);
 
-const S_IFMT: u32 = 0o00170000;
-const S_IFBLK: u32 = 0o0060000;
+const S_IFMT: u32 = 0o170_000;
+const S_IFBLK: u32 = 0o60_000;
+
+macro_rules! main_unwrap {
+    ($e:expr) => {{
+        match $e {
+            Ok(x) => x,
+            Err(err) => {
+                eprintln!("{}", err);
+                std::process::exit(1);
+            }
+        }
+    }};
+}
 
 fn main() {
     let opt = Opt::from_args();
-
-    env_logger::init();
 
     if opt.print {
         let (mut gpt, len) = main_unwrap!(open_disk(&opt));
@@ -83,7 +88,6 @@ fn main() {
                 if command == "q" {
                     break;
                 } else if command != "" {
-                    debug!("received command: {:?}", command);
                     match execute(command.as_str(), &opt, len, &mut gpt, &ask) {
                         Ok(false) => {}
                         Ok(true) => break,
@@ -123,14 +127,12 @@ where
 
     let mut sector_size = opt.sector_size.unwrap_or(512);
 
-    if opt.sector_size.is_none() {
-        if metadata.st_mode() & S_IFMT == S_IFBLK {
-            println!("getting sector size from device");
-            match unsafe { blksszget(f.as_raw_fd(), &mut sector_size) } {
-                Err(err) => println!("ioctl call failed: {}", err),
-                Ok(0) => {}
-                Ok(x) => println!("ioctl returned error code: {}", x),
-            }
+    if opt.sector_size.is_none() && metadata.st_mode() & S_IFMT == S_IFBLK {
+        println!("getting sector size from device");
+        match unsafe { blksszget(f.as_raw_fd(), &mut sector_size) } {
+            Err(err) => println!("ioctl call failed: {}", err),
+            Ok(0) => {}
+            Ok(x) => println!("ioctl returned error code: {}", x),
         }
     }
 

@@ -6,12 +6,12 @@ rust:
   - stable
 
 before_script:
-  - rustup component add rustfmt-preview
+  - rustup component add rustfmt-preview clippy
 
 script:
   - |
       rustfmt --check **/*.rs &&
+      cargo clippy --all-targets --all-features -- -D warnings &&
       cargo build &&
       cargo test &&
-      cargo bench &&
       cargo doc

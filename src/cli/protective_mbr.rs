@@ -9,7 +9,7 @@ where
     let size = writer.seek(SeekFrom::End(0))? / sector_size - 1;
     writer.seek(SeekFrom::Start(446))?;
     // partition 1
-    writer.write(&[
+    writer.write_all(&[
         0x00, // status
         0x00, 0x02, 0x00, // CHS address of first absolute sector
         0xee, // partition type
@@ -19,16 +19,16 @@ where
     // number of sectors in partition 1
     serialize_into(
         &mut writer,
-        &(if size > u32::max_value() as u64 {
+        &(if size > u64::from(u32::max_value()) {
             u32::max_value()
         } else {
             size as u32
         }),
     )?;
-    writer.write(&[0; 16])?; // partition 2
-    writer.write(&[0; 16])?; // partition 3
-    writer.write(&[0; 16])?; // partition 4
-    writer.write(&[0x55, 0xaa])?; // signature
+    writer.write_all(&[0; 16])?; // partition 2
+    writer.write_all(&[0; 16])?; // partition 3
+    writer.write_all(&[0; 16])?; // partition 4
+    writer.write_all(&[0x55, 0xaa])?; // signature
     println!("protective MBR has been written");
 
     Ok(())
