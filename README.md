@@ -3,6 +3,7 @@
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](http://opensource.org/licenses/MIT)
 [![Docs.rs](https://docs.rs/gptman/badge.svg)](https://docs.rs/gptman)
 [![LOC](https://tokei.rs/b1/github/cecton/gptman)](https://github.com/cecton/gptman)
+[![Dependencies](https://deps.rs/repo/github/hyperium/hyper/status.svg)](https://github.com/cecton/gptman)
 
 gptman
 ======

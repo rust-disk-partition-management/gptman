@@ -1,10 +1,7 @@
 #[macro_use]
 extern crate lazy_static;
 #[macro_use]
-extern crate log;
-#[macro_use]
 extern crate clap;
-extern crate env_logger;
 extern crate linefeed;
 #[macro_use]
 extern crate nix;
@@ -53,8 +50,6 @@ macro_rules! main_unwrap {
 fn main() {
     let opt = Opt::from_args();
 
-    env_logger::init();
-
     if opt.print {
         let (mut gpt, len) = main_unwrap!(open_disk(&opt));
 
@@ -93,7 +88,6 @@ fn main() {
                 if command == "q" {
                     break;
                 } else if command != "" {
-                    debug!("received command: {:?}", command);
                     match execute(command.as_str(), &opt, len, &mut gpt, &ask) {
                         Ok(false) => {}
                         Ok(true) => break,

@@ -49,8 +49,6 @@ where
     let mut it = full_command.split(' ');
     let command = it.next().unwrap();
     let args = it.collect::<Vec<_>>();
-    debug!("command: {:?}", command);
-    debug!("command arguments: {:?}", args);
 
     match command {
         "m" => help(),
@@ -120,7 +118,6 @@ fn help() {
 }
 
 fn open_and_print(opt: &Opt, path: &PathBuf) -> Result<()> {
-    debug!("opening GPT from: {:?}", path);
     let mut f = fs::File::open(path)?;
     let len = f.seek(SeekFrom::End(0))?;
     let gpt = GPT::find_from(&mut f)?;
