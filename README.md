@@ -54,7 +54,7 @@ Installation
  *  Library:
 
     Cargo.toml:
-    ```
+    ```toml
     [dependencies]
     gptman = { version = "0.2.0", default-features = false }
     ```
