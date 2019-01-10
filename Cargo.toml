@@ -7,6 +7,7 @@ edition = "2018"
 description = "A GPT manager that allows you to copy partitions from one disk to another"
 repository = "https://github.com/cecton/gptman"
 homepage = "https://github.com/cecton/gptman"
+documentation = "https://docs.rs/gptman"
 readme = "README.md"
 keywords = ["gpt", "partition", "table", "filesystem", "disk"]
 categories = ["command-line-utilities"]
