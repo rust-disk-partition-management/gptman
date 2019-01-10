@@ -1,3 +1,67 @@
+//! A library that allows managing GUID partition tables.
+//!
+//! # Examples
+//! Reading all the partitions of a disk:
+//! ```
+//! let mut f = std::fs::File::open("tests/fixtures/disk1.img")
+//!     .expect("could not open disk");
+//! let gpt = gptman::GPT::find_from(&mut f)
+//!     .expect("could not find GPT");
+//!
+//! println!("Disk GUID: {:?}", gpt.header.disk_guid);
+//!
+//! for (i, p) in gpt.iter() {
+//!     if p.is_used() {
+//!         println!("Partition #{}: type = {:?}, size = {} bytes, starting lba = {}",
+//!             i,
+//!             p.partition_type_guid,
+//!             p.size().unwrap() * gpt.sector_size,
+//!             p.starting_lba);
+//!     }
+//! }
+//! ```
+//! Creating new partitions:
+//! ```
+//! let mut f = std::fs::File::open("tests/fixtures/disk1.img")
+//!     .expect("could not open disk");
+//! let mut gpt = gptman::GPT::find_from(&mut f)
+//!     .expect("could not find GPT");
+//!
+//! let free_partition_number = gpt.iter().find(|(i, p)| p.is_unused()).map(|(i, _)| i)
+//!     .expect("no more places available");
+//! let size = gpt.get_maximum_partition_size()
+//!     .expect("no more space available");
+//! let starting_lba = gpt.find_optimal_place(size)
+//!     .expect("could not find a place to put the partition");
+//! let ending_lba = starting_lba + size - 1;
+//!
+//! gpt[free_partition_number] = gptman::GPTPartitionEntry {
+//!     partition_type_guid: [0xff; 16],
+//!     unique_parition_guid: [0xff; 16],
+//!     starting_lba,
+//!     ending_lba,
+//!     attribute_bits: 0,
+//!     partition_name: "A Robot Named Fight!".into(),
+//! };
+//! ```
+//! Creating a new partition table with one entry that fills the entire disk:
+//! ```
+//! let ss = 512;
+//! let data = vec![0; 100 * ss as usize];
+//! let mut cur = std::io::Cursor::new(data);
+//! let mut gpt = gptman::GPT::new_from(&mut cur, ss as u64, [0xff; 16])
+//!     .expect("could not create partition table");
+//!
+//! gpt[1] = gptman::GPTPartitionEntry {
+//!     partition_type_guid: [0xff; 16],
+//!     unique_parition_guid: [0xff; 16],
+//!     starting_lba: gpt.header.first_usable_lba,
+//!     ending_lba: gpt.header.last_usable_lba,
+//!     attribute_bits: 0,
+//!     partition_name: "A Robot Named Fight!".into(),
+//! };
+//! ```
+
 #![deny(missing_docs)]
 
 extern crate bincode;
@@ -20,20 +84,46 @@ use std::ops::{Index, IndexMut};
 const DEFAULT_ALIGN: u64 = 2048;
 const MAX_ALIGN: u64 = 16384;
 
+/// An error that can be produced while reading, writing or managing a GPT.
 #[derive(Debug)]
 pub enum Error {
+    /// Derialization errors.
     Deserialize(bincode::Error),
+    /// I/O errors.
     Io(io::Error),
+    /// An error that occurs when the signature of the GPT isn't what would be expected ("EFI
+    /// PART").
     InvalidSignature,
+    /// An error that occurs when the revision of the GPT isn't what would be expected (00 00 01
+    /// 00).
     InvalidRevision,
+    /// An error that occurs when the header's size (in bytes) isn't what would be expected (92).
     InvalidHeaderSize,
+    /// An error that occurs when the CRC32 checksum of the header doesn't match the expected
+    /// checksum for the actual header.
     InvalidChecksum(u32, u32),
+    /// An error that occurs when the CRC32 checksum of the partition entries array doesn't match
+    /// the expected checksum for the actual partition entries array.
     InvalidPartitionEntryArrayChecksum(u32, u32),
+    /// An error that occurs when reading a GPT from a file did not succeeded.
+    ///
+    /// The first argument is the error that occurred when trying to read the primary header.
+    /// The second argument is the error that occurred when trying to read the backup header.
     ReadError(Box<Error>, Box<Error>),
+    /// An error that occurs when there is not enough space left on the table to continue.
     NoSpaceLeft,
+    /// An error that occurs when there are partitions with the same GUID in the same array.
     ConflictPartitionGUID,
+    /// An error that occurs when the partition has invalid boundary.
+    /// The end sector must be greater or equal to the start sector of the partition.
+    InvalidPartitionBoundaries,
+    /// An error that occurs when the user provide an invalid partition number.
+    /// The partition number must be between 1 and `number_of_partition_entries` (usually 128)
+    /// included.
+    InvalidPartitionNumber(u32),
 }
 
+/// The result of reading, writing or managing a GPT.
 pub type Result<T> = std::result::Result<T, Error>;
 
 impl From<io::Error> for Error {
@@ -71,29 +161,51 @@ impl fmt::Display for Error {
             ),
             NoSpaceLeft => write!(f, "no space left"),
             ConflictPartitionGUID => write!(f, "conflict of partition GUIDs"),
+            InvalidPartitionBoundaries => write!(
+                f,
+                "invalid partition boundaries: the ending must start at or after the starting"
+            ),
+            InvalidPartitionNumber(i) => write!(f, "invalid partition number: {}", i),
         }
     }
 }
 
+/// A GUID Partition Table header as describe on
+/// [Wikipedia's page](https://en.wikipedia.org/wiki/GUID_Partition_Table#Partition_table_header_(LBA_1)).
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct GPTHeader {
+    /// GPT signature (must be "EFI PART").
     pub signature: [u8; 8],
+    /// GPT revision (must be 00 00 01 00).
     pub revision: [u8; 4],
+    /// GPT header size (must be 92).
     pub header_size: u32,
+    /// CRC32 checksum of the header.
     pub crc32_checksum: u32,
+    /// Reserved bytes of the header.
     pub reserved: [u8; 4],
+    /// Location (in sectors) of the primary header.
     pub primary_lba: u64,
+    /// Location (in sectors) of the backup header.
     pub backup_lba: u64,
+    /// Location (in sectors) of the first usable sector.
     pub first_usable_lba: u64,
+    /// Location (in sectors) of the last usable sector.
     pub last_usable_lba: u64,
+    /// 16 bytes representing the UUID of the GPT.
     pub disk_guid: [u8; 16],
+    /// Location (in sectors) of the partition entries array.
     pub partition_entry_lba: u64,
+    /// Number of partition entries in the array.
     pub number_of_partition_entries: u32,
+    /// Size (in bytes) of a partition entry.
     pub size_of_partition_entry: u32,
+    /// CRC32 checksum of the partition array.
     pub partition_entry_array_crc32: u32,
 }
 
 impl GPTHeader {
+    /// Make a new GPT header based on a reader. (This operation does not write anything to disk!)
     pub fn new_from<R>(reader: &mut R, sector_size: u64, disk_guid: [u8; 16]) -> Result<GPTHeader>
     where
         R: Read + Seek,
@@ -119,6 +231,7 @@ impl GPTHeader {
         Ok(gpt)
     }
 
+    /// Attempt to read a GPT header from a reader.
     pub fn read_from<R: ?Sized>(mut reader: &mut R) -> Result<GPTHeader>
     where
         R: Read + Seek,
@@ -145,6 +258,8 @@ impl GPTHeader {
         Ok(gpt)
     }
 
+    /// Write the GPT header into a writer. This operation will update the CRC32 checksums of the
+    /// current struct and seek at the correct location before trying to write to disk.
     pub fn write_into<W: ?Sized>(
         &mut self,
         mut writer: &mut W,
@@ -171,6 +286,7 @@ impl GPTHeader {
         Ok(())
     }
 
+    /// Generate the CRC32 checksum of the partition header only.
     pub fn generate_crc32_checksum(&self) -> u32 {
         let mut clone = self.clone();
         clone.crc32_checksum = 0;
@@ -180,10 +296,12 @@ impl GPTHeader {
         crc32::checksum_ieee(&data)
     }
 
+    /// Update the CRC32 checksum of this header.
     pub fn update_crc32_checksum(&mut self) {
         self.crc32_checksum = self.generate_crc32_checksum();
     }
 
+    /// Generate the CRC32 checksum of the partition entry array.
     pub fn generate_partition_entry_array_crc32(&self, partitions: &[GPTPartitionEntry]) -> u32 {
         let mut clone = self.clone();
         clone.partition_entry_array_crc32 = 0;
@@ -202,11 +320,15 @@ impl GPTHeader {
         digest.sum32()
     }
 
+    /// Update the CRC32 checksum of the partition entry array.
     pub fn update_partition_entry_array_crc32(&mut self, partitions: &[GPTPartitionEntry]) {
         self.partition_entry_array_crc32 = self.generate_partition_entry_array_crc32(partitions);
     }
 
-    fn update_from<S: ?Sized>(&mut self, seeker: &mut S, sector_size: u64) -> Result<()>
+    /// Updates the header to match the specifications of the reader given in argument.
+    /// `first_usable_lba`, `last_usable_lba`, `primary_lba`, `backup_lba` will be updated after
+    /// this operation.
+    pub fn update_from<S: ?Sized>(&mut self, seeker: &mut S, sector_size: u64) -> Result<()>
     where
         S: Seek,
     {
@@ -227,14 +349,17 @@ impl GPTHeader {
     }
 }
 
+/// A wrapper type for `String` that represents a partition's name.
 #[derive(Debug, Clone)]
 pub struct PartitionName(String);
 
 impl PartitionName {
+    /// Extracts a string slice containing the entire `PartitionName`.
     pub fn as_str(&self) -> &str {
         self.0.as_str()
     }
 
+    /// Converts the given value to a `String`.
     pub fn to_string(&self) -> String {
         self.0.clone()
     }
@@ -297,17 +422,73 @@ impl Serialize for PartitionName {
     }
 }
 
+/// A GPT partition's entry in the partition array.
+///
+/// # Examples
+/// Basic usage:
+/// ```
+/// let ss = 512;
+/// let data = vec![0; 100 * ss as usize];
+/// let mut cur = std::io::Cursor::new(data);
+/// let mut gpt = gptman::GPT::new_from(&mut cur, ss as u64, [0xff; 16])
+///     .expect("could not create partition table");
+///
+/// // NOTE: partition entries starts at 1
+/// gpt[1] = gptman::GPTPartitionEntry {
+///     partition_type_guid: [0xff; 16],
+///     unique_parition_guid: [0xff; 16],
+///     starting_lba: gpt.header.first_usable_lba,
+///     ending_lba: gpt.header.last_usable_lba,
+///     attribute_bits: 0,
+///     partition_name: "A Robot Named Fight!".into(),
+/// };
+///
+/// assert_eq!(gpt[1].partition_name.as_str(), "A Robot Named Fight!");
+/// ```
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct GPTPartitionEntry {
+    /// 16 bytes representing the UUID of the partition's type.
     pub partition_type_guid: [u8; 16],
+    /// 16 bytes representing the UUID of the partition.
     pub unique_parition_guid: [u8; 16],
+    /// The position (in sectors) of the first sector (used) of the partition.
     pub starting_lba: u64,
+    /// The position (in sectors) of the last sector (used) of the partition.
     pub ending_lba: u64,
+    /// The attribute bits.
+    ///
+    /// See [Wikipedia's page](https://en.wikipedia.org/wiki/GUID_Partition_Table#Partition_entries_(LBA_2%E2%80%9333))
+    /// for more information.
     pub attribute_bits: u64,
+    /// The partition name.
+    ///
+    /// # Examples
+    /// Basic usage:
+    /// ```
+    /// let name: gptman::PartitionName = "A Robot Named Fight!".into();
+    ///
+    /// assert_eq!(name.as_str(), "A Robot Named Fight!");
+    /// ```
     pub partition_name: PartitionName,
 }
 
 impl GPTPartitionEntry {
+    /// Creates an empty partition entry
+    ///
+    /// # Examples
+    /// Basic usage:
+    /// ```
+    /// let ss = 512;
+    /// let data = vec![0; 100 * ss as usize];
+    /// let mut cur = std::io::Cursor::new(data);
+    /// let mut gpt = gptman::GPT::new_from(&mut cur, ss as u64, [0xff; 16])
+    ///     .expect("could not create partition table");
+    ///
+    /// gpt[1] = gptman::GPTPartitionEntry::empty();
+    ///
+    /// // NOTE: an empty partition entry is considered as not allocated
+    /// assert!(gpt[1].is_unused());
+    /// ```
     pub fn empty() -> GPTPartitionEntry {
         GPTPartitionEntry {
             partition_type_guid: [0; 16],
@@ -319,35 +500,118 @@ impl GPTPartitionEntry {
         }
     }
 
+    /// Read a partition entry from the reader at the current position.
     pub fn read_from<R: ?Sized>(mut reader: &mut R) -> bincode::Result<GPTPartitionEntry>
     where
-        R: Read + Seek,
+        R: Read,
     {
         deserialize_from(&mut reader)
     }
 
+    /// Returns `true` if the partition entry is not used (type GUID == `[0; 16]`)
     pub fn is_unused(&self) -> bool {
         self.partition_type_guid == [0; 16]
     }
 
+    /// Returns `true` if the partition entry is used (type GUID != `[0; 16]`)
     pub fn is_used(&self) -> bool {
         !self.is_unused()
     }
 
-    pub fn size(&self) -> u64 {
-        self.ending_lba - self.starting_lba + 1
+    /// Returns the number of sectors in the partition. A partition entry must always be 1 sector
+    /// long at minimum.
+    ///
+    /// # Errors
+    /// This function will return an error if the `ending_lba` is lesser than the `starting_lba`.
+    ///
+    /// # Examples:
+    /// Basic usage:
+    /// ```
+    /// let ss = 512;
+    /// let data = vec![0; 100 * ss as usize];
+    /// let mut cur = std::io::Cursor::new(data);
+    /// let mut gpt = gptman::GPT::new_from(&mut cur, ss as u64, [0xff; 16])
+    ///     .expect("could not create partition table");
+    ///
+    /// gpt[1] = gptman::GPTPartitionEntry {
+    ///     partition_type_guid: [0xff; 16],
+    ///     unique_parition_guid: [0xff; 16],
+    ///     starting_lba: gpt.header.first_usable_lba,
+    ///     ending_lba: gpt.header.last_usable_lba,
+    ///     attribute_bits: 0,
+    ///     partition_name: "A Robot Named Fight!".into(),
+    /// };
+    ///
+    /// assert_eq!(
+    ///     gpt[1].size().ok(),
+    ///     Some(gpt.header.last_usable_lba + 1 - gpt.header.first_usable_lba)
+    /// );
+    /// ```
+    pub fn size(&self) -> Result<u64> {
+        if self.ending_lba < self.starting_lba {
+            return Err(Error::InvalidPartitionBoundaries);
+        }
+
+        Ok(self.ending_lba - self.starting_lba + 1)
     }
 }
 
+/// A type representing a GUID partition table including its partition, the sector size of the disk
+/// and the alignment of the partitions to the sectors.
+///
+/// # Examples:
+/// Read an existing GPT on a reader and list its partitions:
+/// ```
+/// let mut f = std::fs::File::open("tests/fixtures/disk1.img")
+///     .expect("could not open disk");
+/// let gpt = gptman::GPT::find_from(&mut f)
+///     .expect("could not find GPT");
+///
+/// println!("Disk GUID: {:?}", gpt.header.disk_guid);
+///
+/// for (i, p) in gpt.iter() {
+///     if p.is_used() {
+///         println!("Partition #{}: type = {:?}, size = {} bytes, starting lba = {}",
+///             i,
+///             p.partition_type_guid,
+///             p.size().unwrap() * gpt.sector_size,
+///             p.starting_lba);
+///     }
+/// }
+/// ```
 #[derive(Debug, Clone)]
 pub struct GPT {
+    /// Sector size of the disk.
+    ///
+    /// You should not change this, otherwise the starting locations of your partitions will be
+    /// different in bytes.
     pub sector_size: u64,
+    /// GPT partition header (disk GUID, first/last usable LBA, etc...)
     pub header: GPTHeader,
     partitions: Vec<GPTPartitionEntry>,
+    /// Partitions alignment (in sectors)
+    ///
+    /// This field change the behavior of the methods `get_maximum_partition_size()`,
+    /// `find_free_sectors()`, `find_first_place()`, `find_last_place()` and `find_optimal_place()`
+    /// so they return only values aligned to the alignment.
+    ///
+    /// # Panics
+    /// The value must be greater than 0, otherwise you will encounter divisions by zero.
     pub align: u64,
 }
 
 impl GPT {
+    /// Make a new GPT based on a reader. (This operation does not write anything to disk!)
+    ///
+    /// # Examples:
+    /// Basic usage:
+    /// ```
+    /// let ss = 512;
+    /// let data = vec![0; 100 * ss as usize];
+    /// let mut cur = std::io::Cursor::new(data);
+    /// let gpt = gptman::GPT::new_from(&mut cur, ss as u64, [0xff; 16])
+    ///     .expect("could not make a partition table");
+    /// ```
     pub fn new_from<R>(reader: &mut R, sector_size: u64, disk_guid: [u8; 16]) -> Result<GPT>
     where
         R: Read + Seek,
@@ -366,6 +630,17 @@ impl GPT {
         })
     }
 
+    /// Read the GPT on a reader. This function will try to read the backup header if the primary
+    /// header could not be read.
+    ///
+    /// # Examples:
+    /// Basic usage:
+    /// ```
+    /// let mut f = std::fs::File::open("tests/fixtures/disk1.img")
+    ///     .expect("could not open disk");
+    /// let gpt = gptman::GPT::read_from(&mut f, 512)
+    ///     .expect("could not read the partition table");
+    /// ```
     pub fn read_from<R: ?Sized>(mut reader: &mut R, sector_size: u64) -> Result<GPT>
     where
         R: Read + Seek,
@@ -412,6 +687,23 @@ impl GPT {
         })
     }
 
+    /// Find the GPT on a reader. This function will try to read the GPT on a disk using a sector
+    /// size of 512 but if it fails it will automatically try to read the GPT using a sector size
+    /// of 4096.
+    ///
+    /// # Examples:
+    /// Basic usage:
+    /// ```
+    /// let mut f_512 = std::fs::File::open("tests/fixtures/disk1.img")
+    ///     .expect("could not open disk");
+    /// let gpt_512 = gptman::GPT::find_from(&mut f_512)
+    ///     .expect("could not read the partition table");
+    ///
+    /// let mut f_4096 = std::fs::File::open("tests/fixtures/disk2.img")
+    ///     .expect("could not open disk");
+    /// let gpt_4096 = gptman::GPT::find_from(&mut f_4096)
+    ///     .expect("could not read the partition table");
+    /// ```
     pub fn find_from<R: ?Sized>(mut reader: &mut R) -> Result<GPT>
     where
         R: Read + Seek,
@@ -459,6 +751,22 @@ impl GPT {
         Ok(())
     }
 
+    /// Write the GPT to a writer. This function will seek automatically in the writer to write the
+    /// primary header and the backup header at their proper location.
+    ///
+    /// # Examples:
+    /// Basic usage:
+    /// ```
+    /// let ss = 512;
+    /// let data = vec![0; 100 * ss as usize];
+    /// let mut cur = std::io::Cursor::new(data);
+    /// let mut gpt = gptman::GPT::new_from(&mut cur, ss as u64, [0xff; 16])
+    ///     .expect("could not make a partition table");
+    ///
+    /// // actually write:
+    /// gpt.write_into(&mut cur)
+    ///     .expect("could not write GPT to disk")
+    /// ```
     pub fn write_into<W: ?Sized>(&mut self, mut writer: &mut W) -> Result<()>
     where
         W: Write + Seek,
@@ -485,6 +793,38 @@ impl GPT {
         Ok(())
     }
 
+    /// Find free spots in the partition table.
+    /// This function will return a vector of tuple with on the left: the starting LBA of the free
+    /// spot; and on the right: the size (in sectors) of the free spot.
+    /// This function will automatically align with the alignment defined in the `GPT`.
+    ///
+    /// # Examples:
+    /// Basic usage:
+    /// ```
+    /// let ss = 512;
+    /// let data = vec![0; 100 * ss as usize];
+    /// let mut cur = std::io::Cursor::new(data);
+    /// let mut gpt = gptman::GPT::new_from(&mut cur, ss as u64, [0xff; 16])
+    ///     .expect("could not create partition table");
+    ///
+    /// gpt[1] = gptman::GPTPartitionEntry {
+    ///     partition_type_guid: [0xff; 16],
+    ///     unique_parition_guid: [0xff; 16],
+    ///     starting_lba: gpt.header.first_usable_lba + 5,
+    ///     ending_lba: gpt.header.last_usable_lba - 5,
+    ///     attribute_bits: 0,
+    ///     partition_name: "A Robot Named Fight!".into(),
+    /// };
+    ///
+    /// // NOTE: align to the sectors, so we can use every last one of them
+    /// // NOTE: this is only for the demonstration purpose, this is not recommended
+    /// gpt.align = 1;
+    ///
+    /// assert_eq!(
+    ///     gpt.find_free_sectors(),
+    ///     vec![(gpt.header.first_usable_lba, 5), (gpt.header.last_usable_lba - 4, 5)]
+    /// );
+    /// ```
     pub fn find_free_sectors(&self) -> Vec<(u64, u64)> {
         assert!(self.align > 0, "align must be greater than 0");
         let mut positions = Vec::new();
@@ -506,6 +846,34 @@ impl GPT {
             .collect()
     }
 
+    /// Find the first place (most on the left) where you could start a new partition of the size
+    /// given in parameter.
+    /// This function will automatically align with the alignment defined in the `GPT`.
+    ///
+    /// # Examples:
+    /// Basic usage:
+    /// ```
+    /// let ss = 512;
+    /// let data = vec![0; 100 * ss as usize];
+    /// let mut cur = std::io::Cursor::new(data);
+    /// let mut gpt = gptman::GPT::new_from(&mut cur, ss as u64, [0xff; 16])
+    ///     .expect("could not create partition table");
+    ///
+    /// gpt[1] = gptman::GPTPartitionEntry {
+    ///     partition_type_guid: [0xff; 16],
+    ///     unique_parition_guid: [0xff; 16],
+    ///     starting_lba: gpt.header.first_usable_lba + 5,
+    ///     ending_lba: gpt.header.last_usable_lba - 5,
+    ///     attribute_bits: 0,
+    ///     partition_name: "A Robot Named Fight!".into(),
+    /// };
+    ///
+    /// // NOTE: align to the sectors, so we can use every last one of them
+    /// // NOTE: this is only for the demonstration purpose, this is not recommended
+    /// gpt.align = 1;
+    ///
+    /// assert_eq!(gpt.find_first_place(5), Some(gpt.header.first_usable_lba));
+    /// ```
     pub fn find_first_place(&self, size: u64) -> Option<u64> {
         self.find_free_sectors()
             .iter()
@@ -513,6 +881,34 @@ impl GPT {
             .map(|(i, _)| *i)
     }
 
+    /// Find the last place (most on the right) where you could start a new partition of the size
+    /// given in parameter.
+    /// This function will automatically align with the alignment defined in the `GPT`.
+    ///
+    /// # Examples:
+    /// Basic usage:
+    /// ```
+    /// let ss = 512;
+    /// let data = vec![0; 100 * ss as usize];
+    /// let mut cur = std::io::Cursor::new(data);
+    /// let mut gpt = gptman::GPT::new_from(&mut cur, ss as u64, [0xff; 16])
+    ///     .expect("could not create partition table");
+    ///
+    /// gpt[1] = gptman::GPTPartitionEntry {
+    ///     partition_type_guid: [0xff; 16],
+    ///     unique_parition_guid: [0xff; 16],
+    ///     starting_lba: gpt.header.first_usable_lba + 5,
+    ///     ending_lba: gpt.header.last_usable_lba - 5,
+    ///     attribute_bits: 0,
+    ///     partition_name: "A Robot Named Fight!".into(),
+    /// };
+    ///
+    /// // NOTE: align to the sectors, so we can use every last one of them
+    /// // NOTE: this is only for the demonstration purpose, this is not recommended
+    /// gpt.align = 1;
+    ///
+    /// assert_eq!(gpt.find_last_place(5), Some(gpt.header.last_usable_lba - 4));
+    /// ```
     pub fn find_last_place(&self, size: u64) -> Option<u64> {
         self.find_free_sectors()
             .iter()
@@ -521,6 +917,36 @@ impl GPT {
             .map(|(i, l)| (i + l - size) / self.align * self.align)
     }
 
+    /// Find the most optimal place (in the smallest free space) where you could start a new
+    /// partition of the size given in parameter.
+    /// This function will automatically align with the alignment defined in the `GPT`.
+    ///
+    /// # Examples:
+    /// Basic usage:
+    /// ```
+    /// let ss = 512;
+    /// let data = vec![0; 100 * ss as usize];
+    /// let mut cur = std::io::Cursor::new(data);
+    /// let mut gpt = gptman::GPT::new_from(&mut cur, ss as u64, [0xff; 16])
+    ///     .expect("could not create partition table");
+    ///
+    /// gpt[1] = gptman::GPTPartitionEntry {
+    ///     partition_type_guid: [0xff; 16],
+    ///     unique_parition_guid: [0xff; 16],
+    ///     starting_lba: gpt.header.first_usable_lba + 10,
+    ///     ending_lba: gpt.header.last_usable_lba - 5,
+    ///     attribute_bits: 0,
+    ///     partition_name: "A Robot Named Fight!".into(),
+    /// };
+    ///
+    /// // NOTE: align to the sectors, so we can use every last one of them
+    /// // NOTE: this is only for the demonstration purpose, this is not recommended
+    /// gpt.align = 1;
+    ///
+    /// // NOTE: the space as the end is more optimal because it will allow you to still be able to
+    /// //       insert a bigger partition later
+    /// assert_eq!(gpt.find_optimal_place(5), Some(gpt.header.last_usable_lba - 4));
+    /// ```
     pub fn find_optimal_place(&self, size: u64) -> Option<u64> {
         let mut slots = self
             .find_free_sectors()
@@ -531,6 +957,27 @@ impl GPT {
         slots.first().map(|&(i, _)| i)
     }
 
+    /// Get the maximum size (in sectors) of a partition you could create in the GPT.
+    /// This function will automatically align with the alignment defined in the `GPT`.
+    ///
+    /// # Examples:
+    /// Basic usage:
+    /// ```
+    /// let ss = 512;
+    /// let data = vec![0; 100 * ss as usize];
+    /// let mut cur = std::io::Cursor::new(data);
+    /// let mut gpt = gptman::GPT::new_from(&mut cur, ss as u64, [0xff; 16])
+    ///     .expect("could not create partition table");
+    ///
+    /// // NOTE: align to the sectors, so we can use every last one of them
+    /// // NOTE: this is only for the demonstration purpose, this is not recommended
+    /// gpt.align = 1;
+    ///
+    /// assert_eq!(
+    ///     gpt.get_maximum_partition_size().unwrap_or(0),
+    ///     gpt.header.last_usable_lba + 1 - gpt.header.first_usable_lba
+    /// );
+    /// ```
     pub fn get_maximum_partition_size(&self) -> Result<u64> {
         self.find_free_sectors()
             .into_iter()
@@ -539,6 +986,7 @@ impl GPT {
             .ok_or(Error::NoSpaceLeft)
     }
 
+    /// Sort the partition entries in the array by the starting LBA.
     pub fn sort(&mut self) {
         self.partitions
             .sort_by(|a, b| match (a.is_used(), b.is_used()) {
@@ -549,11 +997,25 @@ impl GPT {
             });
     }
 
-    pub fn remove(&mut self, i: u32) {
-        assert!(i != 0, "invalid partition index: 0");
+    /// Remove a partition entry in the array.
+    ///
+    /// This is the equivalent of:
+    /// `gpt[i] = gptman::GPTPartitionEntry::empty();`
+    ///
+    /// # Errors
+    /// This function will return an error if index is lesser or equal to 0 or greater than the
+    /// number of partition entries (which can be obtained in the header).
+    pub fn remove(&mut self, i: u32) -> Result<()> {
+        if i <= 0 || i > self.header.number_of_partition_entries {
+            return Err(Error::InvalidPartitionNumber(i));
+        }
+
         self.partitions[i as usize - 1] = GPTPartitionEntry::empty();
+
+        Ok(())
     }
 
+    /// Get an iterator over the partition entries and their index. The index always starts at 1.
     pub fn iter(&self) -> impl Iterator<Item = (u32, &GPTPartitionEntry)> {
         self.partitions
             .iter()
@@ -561,6 +1023,8 @@ impl GPT {
             .map(|(i, x)| (i as u32 + 1, x))
     }
 
+    /// Get a mutable iterator over the partition entries and their index. The index always starts
+    /// at 1.
     pub fn iter_mut(&mut self) -> impl Iterator<Item = (u32, &mut GPTPartitionEntry)> {
         self.partitions
             .iter_mut()
@@ -892,7 +1356,7 @@ mod test {
             let mut gpt = GPT::read_from(&mut f, ss).unwrap();
             let backup_lba = gpt.header.backup_lba;
 
-            gpt.remove(1);
+            assert!(gpt.remove(1).is_ok());
             gpt.write_into(&mut cur).unwrap();
             let maybe_gpt = GPT::read_from(&mut cur, ss);
             assert!(maybe_gpt.is_ok(), format!("{:?}", maybe_gpt.err()));
@@ -917,7 +1381,7 @@ mod test {
         gpt.align = 1;
 
         for i in 1..=gpt.header.number_of_partition_entries {
-            gpt.remove(i);
+            assert!(gpt.remove(i).is_ok());
         }
 
         assert_eq!(gpt.get_maximum_partition_size().ok(), Some(33));
@@ -942,7 +1406,7 @@ mod test {
         let mut gpt = GPT::find_from(&mut fs::File::open(DISK1).unwrap()).unwrap();
 
         for i in 1..=gpt.header.number_of_partition_entries {
-            gpt.remove(i);
+            assert!(gpt.remove(i).is_ok());
         }
 
         gpt.align = 10;

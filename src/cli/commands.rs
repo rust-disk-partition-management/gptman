@@ -322,8 +322,8 @@ pub fn print(opt: &Opt, path: &PathBuf, gpt: &GPT, len: u64) -> Result<()> {
                 Column::Device => table.add_cell(&format!("{}{}", path.display(), i)),
                 Column::Start => table.add_cell_rtl(&format!("{}", p.starting_lba)),
                 Column::End => table.add_cell_rtl(&format!("{}", p.ending_lba)),
-                Column::Sectors => table.add_cell_rtl(&format!("{}", p.size())),
-                Column::Size => table.add_cell_rtl(&format_bytes(p.size() * gpt.sector_size)),
+                Column::Sectors => table.add_cell_rtl(&format!("{}", p.size()?)),
+                Column::Size => table.add_cell_rtl(&format_bytes(p.size()? * gpt.sector_size)),
                 Column::Type => {
                     table.add_cell(p.partition_type_guid.display_partition_type_guid().as_str())
                 }
@@ -617,7 +617,7 @@ where
     let free_sectors = gpt.find_free_sectors();
     let mut p = &mut gpt[i];
 
-    let max_size: u64 = p.size()
+    let max_size: u64 = p.size()?
         + free_sectors
             .iter()
             .skip_while(|(i, _)| *i < p.starting_lba)
@@ -658,7 +658,7 @@ where
     let src_i = ask_used_slot(&src_gpt, ask)?;
     let dst_i = ask_free_slot(dst_gpt, ask)?;
 
-    let size_in_bytes = src_gpt[src_i].size() * src_gpt.sector_size;
+    let size_in_bytes = src_gpt[src_i].size()? * src_gpt.sector_size;
     if size_in_bytes % dst_gpt.sector_size != 0 {
         return Err(Error::new(&format!(
             "Partition size {} is not aligned to sector size {}",
@@ -758,7 +758,7 @@ where
     let src_gpt = GPT::find_from(&mut fs::File::open(src_path)?)?;
 
     for (src_i, p) in src_gpt.iter().filter(|(_, x)| x.is_used()) {
-        let size_in_bytes = p.size() * src_gpt.sector_size;
+        let size_in_bytes = p.size()? * src_gpt.sector_size;
         if size_in_bytes % dst_gpt.sector_size != 0 {
             return Err(Error::new(&format!(
                 "Partition size {} is not aligned to sector size {}",
@@ -790,7 +790,7 @@ where
 {
     let i = ask_used_slot(gpt, ask)?;
 
-    gpt.remove(i);
+    gpt.remove(i)?;
 
     Ok(())
 }
