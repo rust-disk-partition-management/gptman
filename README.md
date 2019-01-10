@@ -1,4 +1,5 @@
 [![Build Status](https://travis-ci.org/cecton/gptman.svg?branch=master)](https://travis-ci.org/cecton/gptman)
+[![Latest Version](https://img.shields.io/crates/v/gptman.svg)](https://crates.io/crates/gptman)
 
 gptman
 ======
