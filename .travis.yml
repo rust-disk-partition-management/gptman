@@ -14,5 +14,4 @@ script:
       cargo clippy --all-targets --all-features -- -D warnings &&
       cargo build &&
       cargo test &&
-      cargo bench &&
       cargo doc
