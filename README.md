@@ -8,7 +8,8 @@
 gptman
 ======
 
-A CLI that allows you to copy a partition from one disk to another and more.
+A CLI tool for Linux that allows you to copy a partition from one disk to
+another and more.
 
 A library that allows managing GUID partition tables.
 
