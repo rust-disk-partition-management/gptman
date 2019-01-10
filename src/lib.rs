@@ -278,7 +278,7 @@ impl GPTHeader {
         for i in 0..self.number_of_partition_entries {
             writer.seek(SeekFrom::Start(
                 self.partition_entry_lba * sector_size
-                    + i as u64 * self.size_of_partition_entry as u64,
+                    + u64::from(i) * u64::from(self.size_of_partition_entry),
             ))?;
             serialize_into(&mut writer, &partitions[i as usize])?;
         }
@@ -332,10 +332,11 @@ impl GPTHeader {
     where
         S: Seek,
     {
-        let partition_array_size =
-            (self.number_of_partition_entries as u64 * self.size_of_partition_entry as u64 - 1)
-                / sector_size
-                + 1;
+        let partition_array_size = (u64::from(self.number_of_partition_entries)
+            * u64::from(self.size_of_partition_entry)
+            - 1)
+            / sector_size
+            + 1;
         let len = seeker.seek(SeekFrom::End(0))? / sector_size;
         if self.primary_lba == 1 {
             self.backup_lba = len - 1;
@@ -664,7 +665,7 @@ impl GPT {
         for i in 0..header.number_of_partition_entries {
             reader.seek(SeekFrom::Start(
                 header.partition_entry_lba * sector_size
-                    + i as u64 * header.size_of_partition_entry as u64,
+                    + u64::from(i) * u64::from(header.size_of_partition_entry),
             ))?;
             partitions.push(GPTPartitionEntry::read_from(&mut reader)?);
         }
@@ -1006,7 +1007,7 @@ impl GPT {
     /// This function will return an error if index is lesser or equal to 0 or greater than the
     /// number of partition entries (which can be obtained in the header).
     pub fn remove(&mut self, i: u32) -> Result<()> {
-        if i <= 0 || i > self.header.number_of_partition_entries {
+        if i == 0 || i > self.header.number_of_partition_entries {
             return Err(Error::InvalidPartitionNumber(i));
         }
 
@@ -1051,6 +1052,8 @@ impl IndexMut<u32> for GPT {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::blacklisted_name)]
+
     use super::*;
     use std::fs;
 
@@ -1074,7 +1077,7 @@ mod test {
             assert!(!foo.is_unused());
 
             f.seek(SeekFrom::Start(
-                gpt.partition_entry_lba * ss + gpt.size_of_partition_entry as u64,
+                gpt.partition_entry_lba * ss + u64::from(gpt.size_of_partition_entry),
             ))
             .unwrap();
             let bar = GPTPartitionEntry::read_from(&mut f).unwrap();
@@ -1085,7 +1088,8 @@ mod test {
             let mut partitions = Vec::new();
             for i in 0..gpt.number_of_partition_entries {
                 f.seek(SeekFrom::Start(
-                    gpt.partition_entry_lba * ss + i as u64 * gpt.size_of_partition_entry as u64,
+                    gpt.partition_entry_lba * ss
+                        + u64::from(i) * u64::from(gpt.size_of_partition_entry),
                 ))
                 .unwrap();
                 let partition = GPTPartitionEntry::read_from(&mut f).unwrap();
@@ -1099,7 +1103,8 @@ mod test {
                 // NOTE: testing that serializing the PartitionName (and the whole struct) works
                 let data1 = serialize(&partition).unwrap();
                 f.seek(SeekFrom::Start(
-                    gpt.partition_entry_lba * ss + i as u64 * gpt.size_of_partition_entry as u64,
+                    gpt.partition_entry_lba * ss
+                        + u64::from(i) * u64::from(gpt.size_of_partition_entry),
                 ))
                 .unwrap();
                 let mut data2 = vec![0; gpt.size_of_partition_entry as usize];
