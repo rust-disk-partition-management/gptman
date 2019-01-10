@@ -14,8 +14,8 @@ Features
  *  Create a new GPT on a disk (-i, --init)
  *  Insert/delete a partition in the table (n, d)
  *  Align partitions automatically (a)
- *  *Resize a partition (r)*
- *  *Copy/clone a partition from one disk and insert it to another (c)*
+ *  **Resize a partition (r)**
+ *  **Copy/clone a partition from one disk and insert it to another (c)**
  *  Change partition type (and list by category) (t)
  *  Fix partitions order (f)
  *  Change disk GUID (i)
