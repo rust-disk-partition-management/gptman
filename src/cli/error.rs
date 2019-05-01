@@ -3,6 +3,7 @@ use gptman;
 use std::fmt;
 use std::io;
 
+#[derive(Debug, PartialEq)]
 pub struct Error(String);
 
 impl Error {

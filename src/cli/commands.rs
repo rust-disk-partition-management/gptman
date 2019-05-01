@@ -203,13 +203,116 @@ where
             ">" => Ok(last_lba),
             "<" => Ok(first_lba),
             "^" => Ok(optimal_lba),
-            x => u64::from_str_radix(x, 10),
+            x => parse_lba(gpt, x, first_lba, last_lba),
         },
-        &format!("Partition starting LBA (< {}, > {})", first_lba, last_lba),
+        &format!(
+            "Partition starting LBA (< {}, > {}, sectors, kib, mib, kb, mb, ...)",
+            first_lba, last_lba
+        ),
         optimal_lba
     )?;
 
     Ok(starting_lba)
+}
+
+fn parse_lba(gpt: &GPT, value: &str, min: u64, max: u64) -> Result<u64> {
+    let n = u64::from_str_radix(value.trim_end_matches(char::is_alphabetic), 10)?;
+    let unit = (*value)
+        .to_uppercase()
+        .as_str()
+        .trim_start_matches(char::is_numeric)
+        .to_string();
+    let result = match unit.as_str() {
+        "KIB" => (n * 1024 - 1) / gpt.sector_size + 1,
+        "MIB" => (n * 1024_u64.pow(2) - 1) / gpt.sector_size + 1,
+        "GIB" => (n * 1024_u64.pow(3) - 1) / gpt.sector_size + 1,
+        "TIB" => (n * 1024_u64.pow(4) - 1) / gpt.sector_size + 1,
+        "PIB" => (n * 1024_u64.pow(5) - 1) / gpt.sector_size + 1,
+        "EIB" => (n * 1024_u64.pow(6) - 1) / gpt.sector_size + 1,
+        "ZIB" => (n * 1024_u64.pow(7) - 1) / gpt.sector_size + 1,
+        "YIB" => (n * 1024_u64.pow(8) - 1) / gpt.sector_size + 1,
+        "KB" => (n * 1000 - 1) / gpt.sector_size + 1,
+        "MB" => (n * 1000_u64.pow(2) - 1) / gpt.sector_size + 1,
+        "GB" => (n * 1000_u64.pow(3) - 1) / gpt.sector_size + 1,
+        "TB" => (n * 1000_u64.pow(4) - 1) / gpt.sector_size + 1,
+        "PB" => (n * 1000_u64.pow(5) - 1) / gpt.sector_size + 1,
+        "EB" => (n * 1000_u64.pow(6) - 1) / gpt.sector_size + 1,
+        "ZB" => (n * 1000_u64.pow(7) - 1) / gpt.sector_size + 1,
+        "YB" => (n * 1000_u64.pow(8) - 1) / gpt.sector_size + 1,
+        "" => u64::from_str_radix(value, 10)?,
+        x => return Err(Error::new(&format!("Invalid unit: {}", x))),
+    };
+    let aligned_up = ((result - 1) / gpt.align + 1) * gpt.align;
+
+    if aligned_up < min {
+        Err("The value is too small".into())
+    } else if aligned_up > max {
+        Err("The value is too big".into())
+    } else {
+        Ok(aligned_up)
+    }
+}
+
+#[test]
+fn test_parse_lba() {
+    use std::io;
+
+    let ss = 2;
+    let data = vec![0; 2 * 2048 * 10];
+    let mut cur = io::Cursor::new(data);
+    let mut gpt = GPT::new_from(&mut cur, ss, [0; 16]).unwrap();
+
+    gpt.align = 1;
+
+    assert_eq!(parse_lba(&gpt, "1", 1, 1), Ok(1));
+    assert_eq!(parse_lba(&gpt, "42", 1, 42), Ok(42));
+    assert!(parse_lba(&gpt, "42", 1, 1).is_err());
+    assert!(parse_lba(&gpt, "1", 2, 1).is_err());
+    assert!(parse_lba(&gpt, "1dl", 1, u64::max_value()).is_err());
+    assert_eq!(parse_lba(&gpt, "1kib", 1, u64::max_value()), Ok(1024 / ss));
+    assert_eq!(
+        parse_lba(&gpt, "5kib", 1, u64::max_value()),
+        Ok(5 * 1024 / ss)
+    );
+    assert_eq!(
+        parse_lba(&gpt, "1mib", 1, u64::max_value()),
+        Ok(1024 * 1024 / ss)
+    );
+    assert_eq!(
+        parse_lba(&gpt, "1gib", 1, u64::max_value()),
+        Ok(1024_u64.pow(3) / ss)
+    );
+    assert_eq!(parse_lba(&gpt, "1kb", 1, u64::max_value()), Ok(1000 / ss));
+    assert_eq!(
+        parse_lba(&gpt, "1mb", 1, u64::max_value()),
+        Ok(1_000_000 / ss)
+    );
+    assert_eq!(
+        parse_lba(&gpt, "1gb", 1, u64::max_value()),
+        Ok(1_000_000_000 / ss)
+    );
+
+    gpt.align = 5;
+
+    assert_eq!(parse_lba(&gpt, "1", 1, u64::max_value()), Ok(5));
+    assert_eq!(parse_lba(&gpt, "42", 1, u64::max_value()), Ok(45));
+    assert_eq!(
+        parse_lba(&gpt, "1kib", 1, u64::max_value()),
+        Ok(1024 / ss / 5 * 5 + 5)
+    );
+    assert_eq!(
+        parse_lba(&gpt, "4kib", 1, u64::max_value()),
+        Ok(4 * 1024 / ss / 5 * 5 + 5)
+    );
+    assert_eq!(
+        parse_lba(&gpt, "5kib", 1, u64::max_value()),
+        Ok(5 * 1024 / ss)
+    );
+
+    gpt.sector_size = 4096;
+    gpt.align = 1;
+
+    assert_eq!(parse_lba(&gpt, "1kib", 1, u64::max_value()), Ok(1));
 }
 
 fn print_bytes<R>(reader: &mut R, limit: usize) -> Result<()>
@@ -350,8 +453,8 @@ where
 
     let size = ask_with_default!(
         ask,
-        |x| u64::from_str_radix(x, 10),
-        "Partition size",
+        |x| parse_lba(gpt, x, 1, max_size),
+        "Partition size (sectors, kib, mib, kb, mb, ...)",
         max_size
     )?;
     if size == 0 {
@@ -592,6 +695,7 @@ where
                 {
                     println!("invalid attribute: {}", attr);
                 } else {
+                    #[allow(clippy::redundant_closure)]
                     break attributes.into_iter().map(|x| x.unwrap());
                 }
             }
