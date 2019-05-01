@@ -695,6 +695,7 @@ where
                 {
                     println!("invalid attribute: {}", attr);
                 } else {
+                    #[allow(clippy::redundant_closure)]
                     break attributes.into_iter().map(|x| x.unwrap());
                 }
             }
