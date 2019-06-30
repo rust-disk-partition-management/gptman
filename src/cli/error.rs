@@ -1,5 +1,6 @@
 use crate::uuid;
 use gptman;
+use std::error::Error as ErrorTrait;
 use std::fmt;
 use std::io;
 
@@ -32,7 +33,14 @@ impl From<io::Error> for Error {
 
 impl From<gptman::Error> for Error {
     fn from(err: gptman::Error) -> Error {
-        Error(format!("{}", err))
+        let mut text = format!("{}", err);
+        let mut cause = err.source();
+        while let Some(error) = cause {
+            text.push_str(format!(": {}", error).as_str());
+            cause = error.source();
+        }
+
+        Error(text)
     }
 }
 

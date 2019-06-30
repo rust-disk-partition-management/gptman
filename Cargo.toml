@@ -32,10 +32,7 @@ bincode = "1.0.1"
 serde_derive = "1.0.83"
 serde = "1.0.83"
 crc = "1.0.0"
-
-[features]
-default = [ "cli" ]
-cli = [ "lazy_static", "ansi_term", "pad", "unicode-width", "clap", "linefeed", "nix", "rand", "structopt" ]
+err-derive = "0.1.5"
 
 [dependencies.lazy_static]
 version = "1.2.0"
@@ -72,3 +69,7 @@ optional = true
 [dependencies.structopt]
 version = "0.2"
 optional = true
+
+[features]
+default = [ "cli" ]
+cli = [ "lazy_static", "ansi_term", "pad", "unicode-width", "clap", "linefeed", "nix", "rand", "structopt" ]
