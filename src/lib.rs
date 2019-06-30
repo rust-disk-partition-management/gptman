@@ -65,6 +65,8 @@
 #![deny(missing_docs)]
 
 extern crate bincode;
+#[macro_use]
+extern crate err_derive;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
@@ -85,41 +87,63 @@ const DEFAULT_ALIGN: u64 = 2048;
 const MAX_ALIGN: u64 = 16384;
 
 /// An error that can be produced while reading, writing or managing a GPT.
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum Error {
     /// Derialization errors.
-    Deserialize(bincode::Error),
+    #[error(display = "deserialization failed")]
+    Deserialize(#[error(cause)] bincode::Error),
     /// I/O errors.
-    Io(io::Error),
+    #[error(display = "generic I/O error")]
+    Io(#[error(cause)] io::Error),
     /// An error that occurs when the signature of the GPT isn't what would be expected ("EFI
     /// PART").
+    #[error(display = "invalid signature")]
     InvalidSignature,
     /// An error that occurs when the revision of the GPT isn't what would be expected (00 00 01
     /// 00).
+    #[error(display = "invalid revision")]
     InvalidRevision,
     /// An error that occurs when the header's size (in bytes) isn't what would be expected (92).
+    #[error(display = "invalid header size")]
     InvalidHeaderSize,
     /// An error that occurs when the CRC32 checksum of the header doesn't match the expected
     /// checksum for the actual header.
+    #[error(display = "corrupted CRC32 checksum ({} != {})", _0, _1)]
     InvalidChecksum(u32, u32),
     /// An error that occurs when the CRC32 checksum of the partition entries array doesn't match
     /// the expected checksum for the actual partition entries array.
+    #[error(
+        display = "corrupted partition entry array CRC32 checksum ({} != {})",
+        _0,
+        _1
+    )]
     InvalidPartitionEntryArrayChecksum(u32, u32),
     /// An error that occurs when reading a GPT from a file did not succeeded.
     ///
     /// The first argument is the error that occurred when trying to read the primary header.
     /// The second argument is the error that occurred when trying to read the backup header.
+    #[error(
+        display = "could not read primary header ({}) nor backup header ({})",
+        _0,
+        _1
+    )]
     ReadError(Box<Error>, Box<Error>),
     /// An error that occurs when there is not enough space left on the table to continue.
+    #[error(display = "no space left")]
     NoSpaceLeft,
     /// An error that occurs when there are partitions with the same GUID in the same array.
+    #[error(display = "conflict of partition GUIDs")]
     ConflictPartitionGUID,
     /// An error that occurs when the partition has invalid boundary.
     /// The end sector must be greater or equal to the start sector of the partition.
+    #[error(
+        display = "invalid partition boundaries: the ending must start at or after the starting"
+    )]
     InvalidPartitionBoundaries,
     /// An error that occurs when the user provide an invalid partition number.
     /// The partition number must be between 1 and `number_of_partition_entries` (usually 128)
     /// included.
+    #[error(display = "invalid partition number: {}", _0)]
     InvalidPartitionNumber(u32),
 }
 
@@ -135,38 +159,6 @@ impl From<io::Error> for Error {
 impl From<bincode::Error> for Error {
     fn from(err: bincode::Error) -> Error {
         Error::Deserialize(err)
-    }
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use self::Error::*;
-
-        match self {
-            Deserialize(err) => err.fmt(f),
-            Io(err) => err.fmt(f),
-            InvalidSignature => write!(f, "invalid signature"),
-            InvalidRevision => write!(f, "invalid revision"),
-            InvalidHeaderSize => write!(f, "invalid header size"),
-            InvalidChecksum(x, y) => write!(f, "corrupted CRC32 checksum ({} != {})", x, y),
-            InvalidPartitionEntryArrayChecksum(x, y) => write!(
-                f,
-                "corrupted partition entry array CRC32 checksum ({} != {})",
-                x, y
-            ),
-            ReadError(x, y) => write!(
-                f,
-                "could not read primary header ({}) nor backup header ({})",
-                x, y
-            ),
-            NoSpaceLeft => write!(f, "no space left"),
-            ConflictPartitionGUID => write!(f, "conflict of partition GUIDs"),
-            InvalidPartitionBoundaries => write!(
-                f,
-                "invalid partition boundaries: the ending must start at or after the starting"
-            ),
-            InvalidPartitionNumber(i) => write!(f, "invalid partition number: {}", i),
-        }
     }
 }
 
