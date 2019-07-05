@@ -200,7 +200,7 @@ where
     Ok(loop {
         match u32::from_str_radix(ask(prompt)?.as_ref(), 10) {
             Err(err) => println!("{}", err),
-            Ok(i) if i > 128 || i <= 0 => println!("the partition index must be between 1 and 128"),
+            Ok(i) if i > 128 || i == 0 => println!("the partition index must be between 1 and 128"),
             Ok(i) => break i,
         }
     })
