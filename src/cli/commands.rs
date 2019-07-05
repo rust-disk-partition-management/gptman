@@ -138,7 +138,16 @@ where
 
     let i = ask_with_default!(
         ask,
-        |x| u32::from_str_radix(x, 10),
+        |x| match u32::from_str_radix(x, 10) {
+            Ok(i) => {
+                if i <= 128 && i > 0 {
+                    Ok(i)
+                } else {
+                    Err("the partition index must be between 1 and 128")
+                }
+            }
+            Err(_) => Err("could not parse integer"),
+        },
         "Enter free partition number",
         default_i
     )?;
@@ -163,7 +172,16 @@ where
     let i = loop {
         match ask_with_default!(
             ask,
-            |x| u32::from_str_radix(x, 10),
+            |x| match u32::from_str_radix(x, 10) {
+                Ok(i) => {
+                    if i <= 128 && i > 0 {
+                        Ok(i)
+                    } else {
+                        Err("the partition index must be between 1 and 128")
+                    }
+                }
+                Err(_) => Err("could not parse integer"),
+            },
             "Enter used partition number",
             default_i
         )? {
@@ -182,6 +200,7 @@ where
     Ok(loop {
         match u32::from_str_radix(ask(prompt)?.as_ref(), 10) {
             Err(err) => println!("{}", err),
+            Ok(i) if i > 128 || i == 0 => println!("the partition index must be between 1 and 128"),
             Ok(i) => break i,
         }
     })
