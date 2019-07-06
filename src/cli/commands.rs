@@ -2,7 +2,6 @@ use crate::attribute_bits::AttributeBits;
 use crate::error::*;
 use crate::gptman::{GPTPartitionEntry, GPT};
 use crate::opt::Opt;
-use crate::protective_mbr::write_protective_mbr_into;
 use crate::table::Table;
 use crate::types::PartitionTypeGUID;
 use crate::uuid::{convert_str_to_array, generate_random_uuid, UUID};
@@ -518,7 +517,8 @@ fn write(gpt: &mut GPT, opt: &Opt) -> Result<()> {
     gpt.write_into(&mut f)?;
 
     if opt.init {
-        write_protective_mbr_into(&mut f, gpt.sector_size)?;
+        GPT::write_protective_mbr_into(&mut f, gpt.sector_size)?;
+        println!("protective MBR has been written");
     }
 
     if fs::metadata(&opt.device)?.st_mode() & S_IFMT == S_IFBLK {
