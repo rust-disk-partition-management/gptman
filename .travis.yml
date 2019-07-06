@@ -8,6 +8,7 @@ os:
 rust:
   - stable
 
+# NOTE: disable Travis' cache for now because it makes the Windows build fail
 cache:
   directories:
 
