@@ -1100,6 +1100,15 @@ impl IndexMut<u32> for GPT {
     }
 }
 
+#[cfg(linux)]
+mod linux {
+    #[macro_use]
+    extern crate nix;
+
+    ioctl_read_bad!(blksszget, 0x1268, u64);
+    ioctl_none!(blkrrpart, 0x12, 95);
+}
+
 #[cfg(test)]
 mod test {
     #![allow(clippy::blacklisted_name)]
