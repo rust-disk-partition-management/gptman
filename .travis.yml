@@ -8,6 +8,9 @@ os:
 rust:
   - stable
 
+cache:
+  directories:
+
 before_script:
   - rustup component add rustfmt-preview clippy
 
