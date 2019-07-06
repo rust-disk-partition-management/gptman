@@ -1024,6 +1024,39 @@ impl GPT {
             .enumerate()
             .map(|(i, x)| (i as u32 + 1, x))
     }
+
+    /// This function writes a protective MBR in the first sector of the disk
+    /// starting at byte 446 and ending at byte 511. Any existing data will be overwritten.
+    pub fn write_protective_mbr_into<W: ?Sized>(mut writer: &mut W, sector_size: u64) -> Result<()>
+    where
+        W: Write + Seek,
+    {
+        let size = writer.seek(SeekFrom::End(0))? / sector_size - 1;
+        writer.seek(SeekFrom::Start(446))?;
+        // partition 1
+        writer.write_all(&[
+            0x00, // status
+            0x00, 0x02, 0x00, // CHS address of first absolute sector
+            0xee, // partition type
+            0xff, 0xff, 0xff, // CHS address of last absolute sector
+            0x01, 0x00, 0x00, 0x00, // LBA of first absolute sector
+        ])?;
+        // number of sectors in partition 1
+        serialize_into(
+            &mut writer,
+            &(if size > u64::from(u32::max_value()) {
+                u32::max_value()
+            } else {
+                size as u32
+            }),
+        )?;
+        writer.write_all(&[0; 16])?; // partition 2
+        writer.write_all(&[0; 16])?; // partition 3
+        writer.write_all(&[0; 16])?; // partition 4
+        writer.write_all(&[0x55, 0xaa])?; // signature
+
+        Ok(())
+    }
 }
 
 impl Index<u32> for GPT {
@@ -1508,6 +1541,34 @@ mod test {
             gpt.write_into(&mut cur).unwrap();
             let gpt = GPT::read_from(&mut cur, ss).unwrap();
             assert_eq!(gpt.align, gpt.header.first_usable_lba + 1);
+        }
+
+        test(512);
+        test(4096);
+    }
+
+    #[test]
+    fn writing_protective_mbr() {
+        fn test(ss: u64) {
+            let data = vec![2; ss as usize * 100];
+            let mut cur = io::Cursor::new(data);
+            GPT::write_protective_mbr_into(&mut cur, ss).unwrap();
+            let data = cur.get_ref();
+
+            assert_eq!(data[510], 0x55);
+            assert_eq!(data[511], 0xaa);
+            assert_eq!(data[446 + 4], 0xee);
+            for (i, x) in data.iter().enumerate() {
+                if i < 446 || i >= 512 {
+                    assert_eq!(*x, 2);
+                }
+            }
+
+            cur.seek(SeekFrom::Start(446 + 8)).unwrap();
+            let first_lba: u32 = deserialize_from(&mut cur).unwrap();
+            let sectors: u32 = deserialize_from(&mut cur).unwrap();
+            assert_eq!(first_lba, 1);
+            assert_eq!(sectors, 99);
         }
 
         test(512);

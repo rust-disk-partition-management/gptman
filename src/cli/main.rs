@@ -13,7 +13,6 @@ mod attribute_bits;
 mod commands;
 mod error;
 mod opt;
-mod protective_mbr;
 mod table;
 mod types;
 mod uuid;
