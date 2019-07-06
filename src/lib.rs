@@ -145,6 +145,9 @@ pub enum Error {
     /// included.
     #[error(display = "invalid partition number: {}", _0)]
     InvalidPartitionNumber(u32),
+    /// An operation that required to find a partition, was unable to find that partition.
+    #[error(display = "partition not found")]
+    PartitionNotFound,
 }
 
 /// The result of reading, writing or managing a GPT.
@@ -786,6 +789,17 @@ impl GPT {
         Ok(())
     }
 
+    /// Finds the partition where the given sector resides.
+    pub fn find_at_sector(&self, sector: u64) -> Option<u32> {
+        fn between(partition: &GPTPartitionEntry, sector: u64) -> bool {
+            sector >= partition.starting_lba && sector <= partition.ending_lba
+        }
+
+        self.iter()
+            .find(|(_, partition)| partition.is_used() && between(partition, sector))
+            .map(|(id, _)| id)
+    }
+
     /// Find free spots in the partition table.
     /// This function will return a vector of tuple with on the left: the starting LBA of the free
     /// spot; and on the right: the size (in sectors) of the free spot.
@@ -1006,6 +1020,17 @@ impl GPT {
         self.partitions[i as usize - 1] = GPTPartitionEntry::empty();
 
         Ok(())
+    }
+
+    /// Remove a partiton entry in the array that resides at a given sector.
+    ///
+    /// # Errors
+    /// It is an error to provide a sector which does not belong to a partition.
+    pub fn remove_at_sector(&mut self, sector: u64) -> Result<()> {
+        self.remove(
+            self.find_at_sector(sector)
+                .ok_or(Error::PartitionNotFound)?,
+        )
     }
 
     /// Get an iterator over the partition entries and their index. The index always starts at 1.
