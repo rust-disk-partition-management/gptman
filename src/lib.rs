@@ -1558,9 +1558,9 @@ mod test {
             assert_eq!(data[510], 0x55);
             assert_eq!(data[511], 0xaa);
             assert_eq!(data[446 + 4], 0xee);
-            for i in 0..data.len() {
+            for (i, x) in data.iter().enumerate() {
                 if i < 446 || i >= 512 {
-                    assert_eq!(data[i], 2);
+                    assert_eq!(*x, 2);
                 }
             }
 
