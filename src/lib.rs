@@ -86,6 +86,9 @@ use std::io;
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::ops::{Index, IndexMut};
 
+/// Linux specific helpers
+pub mod linux;
+
 const DEFAULT_ALIGN: u64 = 2048;
 const MAX_ALIGN: u64 = 16384;
 
@@ -1101,14 +1104,6 @@ impl IndexMut<u32> for GPT {
         assert!(i != 0, "invalid partition index: 0");
         &mut self.partitions[i as usize - 1]
     }
-}
-
-#[cfg(target_os = "linux")]
-#[allow(missing_docs)]
-/// Linux ioctls
-pub mod linux {
-    ioctl_read_bad!(blksszget, 0x1268, u64);
-    ioctl_none!(blkrrpart, 0x12, 95);
 }
 
 #[cfg(test)]
