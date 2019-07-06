@@ -71,6 +71,9 @@ extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 extern crate crc;
+#[cfg(target_os = "linux")]
+#[macro_use]
+extern crate nix;
 
 use bincode::{deserialize_from, serialize, serialize_into};
 use crc::{crc32, Hasher32};
@@ -1100,11 +1103,10 @@ impl IndexMut<u32> for GPT {
     }
 }
 
-#[cfg(linux)]
-mod linux {
-    #[macro_use]
-    extern crate nix;
-
+#[cfg(target_os = "linux")]
+#[allow(missing_docs)]
+/// Linux ioctls
+pub mod linux {
     ioctl_read_bad!(blksszget, 0x1268, u64);
     ioctl_none!(blkrrpart, 0x12, 95);
 }

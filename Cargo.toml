@@ -72,7 +72,7 @@ optional = true
 
 [features]
 default = [ "cli" ]
-cli = [ "lazy_static", "ansi_term", "pad", "unicode-width", "clap", "linefeed", "nix", "rand", "structopt" ]
+cli = [ "lazy_static", "ansi_term", "pad", "unicode-width", "clap", "linefeed", "rand", "structopt" ]
 
-[target.'cfg(linux)'.dependencies]
+[target.'cfg(target_os = "linux")'.dependencies]
 nix = "0.14.1"
