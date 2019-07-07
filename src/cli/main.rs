@@ -118,8 +118,8 @@ where
 
     let sector_size = if cfg!(target_os = "linux") {
         get_sector_size(&mut f).unwrap_or_else(|err| {
-            println!("{}", err);
-            512
+            println!("failed to get sector size of device: {}", err);
+            opt.sector_size.unwrap_or(512)
         })
     } else {
         opt.sector_size.unwrap_or(512)
@@ -133,6 +133,8 @@ where
     ask("Do you wish to continue (yes/no)?").and_then(|x| {
         if x == "yes" {
             Ok(())
+        } else if x == "no" {
+            Err(Error::new(&format!("Aborted.")))
         } else {
             Err(Error::new(&format!(
                 "Invalid answer '{}'. Please type 'yes' or 'no'.",

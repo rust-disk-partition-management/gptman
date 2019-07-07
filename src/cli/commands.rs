@@ -518,7 +518,7 @@ fn write(gpt: &mut GPT, opt: &Opt) -> Result<()> {
     #[cfg(target_os = "linux")]
     {
         if let Err(err) = reread_partition_table(&mut f) {
-            println!("{}", err);
+            println!("rereading partition table failed: {}", err);
         }
     }
 
