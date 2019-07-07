@@ -116,14 +116,17 @@ where
     let mut f = fs::File::open(&opt.device)?;
     let len = f.seek(SeekFrom::End(0))?;
 
-    let sector_size = if cfg!(target_os = "linux") {
-        get_sector_size(&mut f).unwrap_or_else(|err| {
-            println!("failed to get sector size of device: {}", err);
-            opt.sector_size.unwrap_or(512)
-        })
-    } else {
-        opt.sector_size.unwrap_or(512)
-    };
+    #[allow(unused_mut)]
+    let mut sector_size = opt.sector_size.unwrap_or(512);
+
+    #[cfg(target_os = "linux")]
+    {
+        match get_sector_size(&mut f) {
+            Err(err) => println!("failed to get sector size of device: {}", err),
+            Ok(x) => sector_size = x,
+        }
+    }
+
     println!("Sector size: {} bytes", sector_size);
 
     if GPT::find_from(&mut f).is_ok() {
