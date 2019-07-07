@@ -20,7 +20,7 @@ use self::error::*;
 use self::opt::*;
 use self::uuid::generate_random_uuid;
 #[cfg(target_os = "linux")]
-use gptman::linux::blksszget;
+use gptman::linux::get_sector_size;
 use gptman::GPT;
 use linefeed::{Interface, ReadResult, Signal};
 use std::fs;
@@ -116,29 +116,14 @@ where
     let mut f = fs::File::open(&opt.device)?;
     let len = f.seek(SeekFrom::End(0))?;
 
-    #[allow(unused_mut)]
-    let mut sector_size = opt.sector_size.unwrap_or(512);
-
-    #[cfg(target_os = "linux")]
-    {
-        const S_IFMT: u32 = 0o170_000;
-        const S_IFBLK: u32 = 0o60_000;
-
-        use std::os::linux::fs::MetadataExt;
-        use std::os::unix::io::AsRawFd;
-
-        let metadata = fs::metadata(&opt.device).expect("could not get metadata");
-
-        if opt.sector_size.is_none() && metadata.st_mode() & S_IFMT == S_IFBLK {
-            println!("getting sector size from device");
-            match unsafe { blksszget(f.as_raw_fd(), &mut sector_size) } {
-                Err(err) => println!("ioctl call failed: {}", err),
-                Ok(0) => {}
-                Ok(x) => println!("ioctl returned error code: {}", x),
-            }
-        }
-    }
-
+    let sector_size = if cfg!(target_os = "linux") {
+        get_sector_size(&mut f).unwrap_or_else(|err| {
+            println!("{}", err);
+            512
+        })
+    } else {
+        opt.sector_size.unwrap_or(512)
+    };
     println!("Sector size: {} bytes", sector_size);
 
     if GPT::find_from(&mut f).is_ok() {

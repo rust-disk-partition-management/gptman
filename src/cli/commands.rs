@@ -6,7 +6,7 @@ use crate::table::Table;
 use crate::types::PartitionTypeGUID;
 use crate::uuid::{convert_str_to_array, generate_random_uuid, UUID};
 #[cfg(target_os = "linux")]
-use gptman::linux::blkrrpart;
+use gptman::linux::reread_partition_table;
 use std::fs;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::PathBuf;
@@ -517,19 +517,8 @@ fn write(gpt: &mut GPT, opt: &Opt) -> Result<()> {
 
     #[cfg(target_os = "linux")]
     {
-        use std::os::linux::fs::MetadataExt;
-        use std::os::unix::io::IntoRawFd;
-
-        const S_IFMT: u32 = 0o170_000;
-        const S_IFBLK: u32 = 0o60_000;
-
-        if fs::metadata(&opt.device)?.st_mode() & S_IFMT == S_IFBLK {
-            println!("calling re-read ioctl");
-            match unsafe { blkrrpart(f.into_raw_fd()) } {
-                Err(err) => println!("ioctl call failed: {}", err),
-                Ok(0) => {}
-                Ok(x) => println!("ioctl returned error code: {}", x),
-            }
+        if let Err(err) = reread_partition_table(&mut f) {
+            println!("{}", err);
         }
     }
 

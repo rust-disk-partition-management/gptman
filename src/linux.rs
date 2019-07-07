@@ -13,7 +13,7 @@ mod ioctl {
 const S_IFMT: u32 = 0o170_000;
 const S_IFBLK: u32 = 0o60_000;
 
-/// An error that can happen while doing an ioctl call
+/// An error that can happen while doing an ioctl call with a block device
 #[derive(Debug, Error)]
 pub enum BlockError {
     /// An error that occurs when the metadata of the input file couldn't be retrieved
@@ -35,12 +35,10 @@ pub fn reread_partition_table(file: &mut fs::File) -> Result<(), BlockError> {
     let metadata = file.metadata().map_err(BlockError::Metadata)?;
 
     if metadata.st_mode() & S_IFMT == S_IFBLK {
-        unsafe {
-            match ioctl::blkrrpart(file.as_raw_fd()) {
-                Err(err) => Err(BlockError::RereadTable(err)),
-                Ok(0) => Ok(()),
-                Ok(r) => Err(BlockError::InvalidReturnValue(r)),
-            }
+        match unsafe { ioctl::blkrrpart(file.as_raw_fd()) } {
+            Err(err) => Err(BlockError::RereadTable(err)),
+            Ok(0) => Ok(()),
+            Ok(r) => Err(BlockError::InvalidReturnValue(r)),
         }
     } else {
         Err(BlockError::NotBlock)
