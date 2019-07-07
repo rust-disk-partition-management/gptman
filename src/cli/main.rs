@@ -137,7 +137,7 @@ where
         if x == "yes" {
             Ok(())
         } else if x == "no" {
-            Err(Error::new(&format!("Aborted.")))
+            Err(Error::new("Aborted."))
         } else {
             Err(Error::new(&format!(
                 "Invalid answer '{}'. Please type 'yes' or 'no'.",
