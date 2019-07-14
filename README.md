@@ -36,6 +36,7 @@ Features
  *  Swap partition indexes (s)
  *  Randomize disk's GUID and all partition's GUID (Z)
  *  Copy/clone all partitions from one disk and insert it to another (C)
+ *  Write protective MBR
 
 Installation
 ------------

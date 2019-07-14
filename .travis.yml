@@ -1,9 +1,16 @@
 sudo: false
 language: rust
 cache: cargo
+os:
+  - linux
+  - windows
 
 rust:
   - stable
+
+# NOTE: disable Travis' cache for now because it makes the Windows build fail
+cache:
+  directories:
 
 before_script:
   - rustup component add rustfmt-preview clippy

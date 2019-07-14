@@ -71,6 +71,9 @@ extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 extern crate crc;
+#[cfg(target_os = "linux")]
+#[macro_use]
+extern crate nix;
 
 use bincode::{deserialize_from, serialize, serialize_into};
 use crc::{crc32, Hasher32};
@@ -82,6 +85,9 @@ use std::fmt;
 use std::io;
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::ops::{Index, IndexMut};
+
+/// Linux specific helpers
+pub mod linux;
 
 const DEFAULT_ALIGN: u64 = 2048;
 const MAX_ALIGN: u64 = 16384;

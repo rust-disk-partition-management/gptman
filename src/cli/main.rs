@@ -2,10 +2,8 @@
 extern crate lazy_static;
 #[macro_use]
 extern crate clap;
-extern crate linefeed;
-#[macro_use]
-extern crate nix;
 extern crate gptman;
+extern crate linefeed;
 extern crate rand;
 extern crate structopt;
 
@@ -21,18 +19,13 @@ use self::commands::{execute, print};
 use self::error::*;
 use self::opt::*;
 use self::uuid::generate_random_uuid;
+#[cfg(target_os = "linux")]
+use gptman::linux::get_sector_size;
 use gptman::GPT;
 use linefeed::{Interface, ReadResult, Signal};
 use std::fs;
 use std::io::{Seek, SeekFrom};
-use std::os::linux::fs::MetadataExt;
-use std::os::unix::io::AsRawFd;
 use structopt::StructOpt;
-
-ioctl_read_bad!(blksszget, 0x1268, u64);
-
-const S_IFMT: u32 = 0o170_000;
-const S_IFBLK: u32 = 0o60_000;
 
 macro_rules! main_unwrap {
     ($e:expr) => {{
@@ -122,16 +115,15 @@ where
 
     let mut f = fs::File::open(&opt.device)?;
     let len = f.seek(SeekFrom::End(0))?;
-    let metadata = fs::metadata(&opt.device).expect("could not get metadata");
 
+    #[allow(unused_mut)]
     let mut sector_size = opt.sector_size.unwrap_or(512);
 
-    if opt.sector_size.is_none() && metadata.st_mode() & S_IFMT == S_IFBLK {
-        println!("getting sector size from device");
-        match unsafe { blksszget(f.as_raw_fd(), &mut sector_size) } {
-            Err(err) => println!("ioctl call failed: {}", err),
-            Ok(0) => {}
-            Ok(x) => println!("ioctl returned error code: {}", x),
+    #[cfg(target_os = "linux")]
+    {
+        match get_sector_size(&mut f) {
+            Err(err) => println!("failed to get sector size of device: {}", err),
+            Ok(x) => sector_size = x,
         }
     }
 
@@ -144,6 +136,8 @@ where
     ask("Do you wish to continue (yes/no)?").and_then(|x| {
         if x == "yes" {
             Ok(())
+        } else if x == "no" {
+            Err(Error::new("Aborted."))
         } else {
             Err(Error::new(&format!(
                 "Invalid answer '{}'. Please type 'yes' or 'no'.",
