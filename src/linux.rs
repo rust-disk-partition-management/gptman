@@ -22,6 +22,9 @@ pub enum BlockError {
     /// An error that occurs when the partition table could not be reloaded by the OS
     #[error(display = "failed to reload partition table of device")]
     RereadTable(#[error(cause)] nix::Error),
+    /// An error that occurs when the sector size could not be retrieved from the OS
+    #[error(display = "failed to get the sector size of device")]
+    GetSectorSize(#[error(cause)] nix::Error),
     /// An error that occurs when an invalid return code has been received from an ioctl call
     #[error(display = "invalid return value of ioctl ({} != 0)", _0)]
     InvalidReturnValue(i32),
@@ -52,7 +55,7 @@ pub fn get_sector_size(file: &mut fs::File) -> Result<u64, BlockError> {
 
     if metadata.st_mode() & S_IFMT == S_IFBLK {
         match unsafe { ioctl::blksszget(file.as_raw_fd(), &mut sector_size) } {
-            Err(err) => Err(BlockError::RereadTable(err)),
+            Err(err) => Err(BlockError::GetSectorSize(err)),
             Ok(0) => Ok(sector_size),
             Ok(r) => Err(BlockError::InvalidReturnValue(r)),
         }
