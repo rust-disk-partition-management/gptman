@@ -159,18 +159,6 @@ pub enum Error {
 /// The result of reading, writing or managing a GPT.
 pub type Result<T> = std::result::Result<T, Error>;
 
-impl From<io::Error> for Error {
-    fn from(err: io::Error) -> Error {
-        Error::Io(err)
-    }
-}
-
-impl From<bincode::Error> for Error {
-    fn from(err: bincode::Error) -> Error {
-        Error::Deserialize(err)
-    }
-}
-
 /// A GUID Partition Table header as describe on
 /// [Wikipedia's page](https://en.wikipedia.org/wiki/GUID_Partition_Table#Partition_table_header_(LBA_1)).
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -360,10 +348,11 @@ impl PartitionName {
     pub fn as_str(&self) -> &str {
         self.0.as_str()
     }
+}
 
-    /// Converts the given value to a `String`.
-    pub fn to_string(&self) -> String {
-        self.0.clone()
+impl std::fmt::Display for PartitionName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 
@@ -397,7 +386,7 @@ impl<'de> Visitor<'de> for UTF16LEVisitor {
             }
         }
 
-        Ok(PartitionName(String::from_utf16_lossy(&v).to_string()))
+        Ok(PartitionName(String::from_utf16_lossy(&v)))
     }
 }
 
@@ -1457,7 +1446,7 @@ mod test {
             partition.partition_type_guid = [0; 16];
         }
         gpt.partitions[0].starting_lba = gpt.header.first_usable_lba;
-        gpt.partitions[0].ending_lba = gpt.header.last_usable_lba;;
+        gpt.partitions[0].ending_lba = gpt.header.last_usable_lba;
 
         assert!(gpt.get_maximum_partition_size().is_err());
     }

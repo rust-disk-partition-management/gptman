@@ -24,7 +24,7 @@ pub enum BlockError {
     RereadTable(#[error(cause)] nix::Error),
     /// An error that occurs when the sector size could not be retrieved from the OS
     #[error(display = "failed to get the sector size of device")]
-    GetSectorSize(#[error(cause)] nix::Error),
+    GetSectorSize(#[error(cause, no_from)] nix::Error),
     /// An error that occurs when an invalid return code has been received from an ioctl call
     #[error(display = "invalid return value of ioctl ({} != 0)", _0)]
     InvalidReturnValue(i32),
