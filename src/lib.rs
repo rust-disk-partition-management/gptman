@@ -348,10 +348,12 @@ impl PartitionName {
     pub fn as_str(&self) -> &str {
         self.0.as_str()
     }
+}
 
+impl std::fmt::Display for PartitionName {
     /// Converts the given value to a `String`.
-    pub fn to_string(&self) -> String {
-        self.0.clone()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 
@@ -385,7 +387,7 @@ impl<'de> Visitor<'de> for UTF16LEVisitor {
             }
         }
 
-        Ok(PartitionName(String::from_utf16_lossy(&v).to_string()))
+        Ok(PartitionName(String::from_utf16_lossy(&v)))
     }
 }
 
