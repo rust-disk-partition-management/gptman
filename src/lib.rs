@@ -351,7 +351,6 @@ impl PartitionName {
 }
 
 impl std::fmt::Display for PartitionName {
-    /// Converts the given value to a `String`.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
     }
