@@ -229,7 +229,7 @@ dependencies = [
 
 [[package]]
 name = "gptman"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "ansi_term 0.12.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "bincode 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",

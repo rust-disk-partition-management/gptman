@@ -436,10 +436,14 @@ pub fn print(opt: &Opt, path: &PathBuf, gpt: &GPT, len: u64) -> Result<()> {
             Column::Name => table.add_cell("Name"),
         }
     }
+    let mut base_path = path.display().to_string();
+    if base_path.ends_with(char::is_numeric) {
+        base_path += "p";
+    }
     for (i, p) in gpt.iter().filter(|(_, x)| x.is_used()) {
         for column in opt.columns.iter() {
             match column {
-                Column::Device => table.add_cell(&format!("{}{}", path.display(), i)),
+                Column::Device => table.add_cell(&format!("{}{}", base_path, i)),
                 Column::Start => table.add_cell_rtl(&format!("{}", p.starting_lba)),
                 Column::End => table.add_cell_rtl(&format!("{}", p.ending_lba)),
                 Column::Sectors => table.add_cell_rtl(&format!("{}", p.size()?)),
