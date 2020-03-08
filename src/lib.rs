@@ -64,13 +64,10 @@
 
 #![deny(missing_docs)]
 
-extern crate bincode;
 #[macro_use]
 extern crate err_derive;
-extern crate serde;
 #[macro_use]
 extern crate serde_derive;
-extern crate crc;
 #[cfg(target_os = "linux")]
 #[macro_use]
 extern crate nix;
