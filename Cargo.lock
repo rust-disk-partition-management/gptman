@@ -182,11 +182,11 @@ dependencies = [
 
 [[package]]
 name = "err-derive"
-version = "0.2.3"
+version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "82f46c91bbed409ee74495549acbfcc7fae856e712e1df15afe75d0775eedc6c"
+checksum = "22deed3a8124cff5fa835713fa105621e43bbdc46690c3a6b68328a012d350d4"
 dependencies = [
- "proc-macro-error 0.4.11",
+ "proc-macro-error",
  "proc-macro2",
  "quote",
  "rustversion",
@@ -397,40 +397,14 @@ checksum = "74490b50b9fbe561ac330df47c08f3f33073d2d00c150f719147d7c54522fa1b"
 
 [[package]]
 name = "proc-macro-error"
-version = "0.4.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e7959c6467d962050d639361f7703b2051c43036d03493c36f01d440fdd3138a"
-dependencies = [
- "proc-macro-error-attr 0.4.11",
- "proc-macro2",
- "quote",
- "syn",
- "version_check 0.9.1",
-]
-
-[[package]]
-name = "proc-macro-error"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8931031034aa65c73f3f1a05c3ec0fa51287fcd06557ecf4e88b2768bdca375e"
 dependencies = [
- "proc-macro-error-attr 1.0.1",
+ "proc-macro-error-attr",
  "proc-macro2",
  "quote",
  "syn",
- "version_check 0.9.1",
-]
-
-[[package]]
-name = "proc-macro-error-attr"
-version = "0.4.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e4002d9f55991d5e019fb940a90e1a95eb80c24e77cb2462dd4dc869604d543a"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
- "syn-mid",
  "version_check 0.9.1",
 ]
 
@@ -732,7 +706,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a489c87c08fbaf12e386665109dd13470dcc9c4583ea3e10dd2b4523e5ebd9ac"
 dependencies = [
  "heck",
- "proc-macro-error 1.0.1",
+ "proc-macro-error",
  "proc-macro2",
  "quote",
  "syn",

@@ -32,7 +32,7 @@ bincode = "1.0.1"
 serde_derive = "1.0.106"
 serde = "1.0.106"
 crc = "1.0.0"
-err-derive = "0.2.3"
+err-derive = "0.2.4"
 
 [dependencies.lazy_static]
 version = "1.2.0"
