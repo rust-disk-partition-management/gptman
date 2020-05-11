@@ -30,7 +30,7 @@ maintenance = { status = "actively-developed" }
 [dependencies]
 bincode = "1.0.1"
 serde_derive = "1.0.106"
-serde = "1.0.106"
+serde = "1.0.110"
 crc = "1.0.0"
 err-derive = "0.2.4"
 
