@@ -99,7 +99,7 @@ fn help() {
     println!("  A   toggle the legacy BIOS bootable flag");
     println!("  B   toggle the no block IO protocol flag");
     println!("  c   copy a partition from another device (or the same)");
-    println!("  C   copy a partition from another device (or the same)");
+    println!("  C   copy all partitions from another device (or the same)");
     println!("  d   delete a partition");
     println!("  D   print the raw data of the disklabel from the device");
     println!("  f   fix partitions order");
