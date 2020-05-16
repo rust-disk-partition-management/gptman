@@ -1,5 +1,4 @@
 use crate::uuid;
-use gptman;
 use std::error::Error as ErrorTrait;
 use std::fmt;
 use std::io;
