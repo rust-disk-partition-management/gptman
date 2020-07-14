@@ -9,6 +9,7 @@ repository = "https://github.com/cecton/gptman"
 homepage = "https://github.com/cecton/gptman"
 documentation = "https://docs.rs/gptman"
 readme = "README.md"
+exclude = ["/.gitignore", "/.travis.yml"]
 keywords = ["gpt", "partition", "table", "filesystem", "disk"]
 categories = ["command-line-utilities"]
 
