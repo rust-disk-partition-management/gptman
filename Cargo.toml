@@ -1,6 +1,6 @@
 [package]
 name = "gptman"
-version = "0.6.3"
+version = "0.6.4"
 authors = ["Cecile Tonglet <cecile.tonglet@cecton.com>"]
 license = "MIT"
 edition = "2018"
