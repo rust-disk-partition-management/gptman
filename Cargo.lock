@@ -219,7 +219,7 @@ dependencies = [
  "err-derive",
  "lazy_static",
  "linefeed",
- "nix",
+ "nix 0.18.0",
  "pad",
  "rand",
  "serde",
@@ -283,7 +283,7 @@ checksum = "998fd6a991497275567703b6f435e27958b633878ec991f5734b96dd46675e9f"
 dependencies = [
  "bitflags",
  "libc",
- "nix",
+ "nix 0.17.0",
  "smallstr",
  "terminfo",
  "unicode-normalization",
@@ -302,6 +302,18 @@ dependencies = [
  "cfg-if",
  "libc",
  "void",
+]
+
+[[package]]
+name = "nix"
+version = "0.18.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "83450fe6a6142ddd95fb064b746083fc4ef1705fe81f64a64e1d4b39f54a1055"
+dependencies = [
+ "bitflags",
+ "cc",
+ "cfg-if",
+ "libc",
 ]
 
 [[package]]
