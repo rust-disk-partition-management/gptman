@@ -49,7 +49,7 @@ fn main() {
             gpt.align = align;
         }
 
-        main_unwrap!(print(&opt, &opt.device, &gpt, len));
+        main_unwrap!(print(&opt, &opt.device, &gpt, len, false));
         return;
     }
 

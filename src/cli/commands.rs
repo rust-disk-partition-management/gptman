@@ -53,12 +53,14 @@ where
 
     match command {
         "m" => help(),
-        "p" => {
+        "p" | "P" => {
+            let disk_order = command == "P";
+
             if args.is_empty() {
-                print(&opt, &opt.device, gpt, len)?;
+                print(&opt, &opt.device, gpt, len, disk_order)?;
             } else {
                 for path in args {
-                    match open_and_print(&opt, &path.into()) {
+                    match open_and_print(&opt, &path.into(), disk_order) {
                         Ok(()) => {}
                         Err(err) => println!("could not open {:?}: {}", path, err),
                     }
@@ -106,7 +108,8 @@ fn help() {
     println!("  i   change disk GUID");
     println!("  L   change partition name");
     println!("  n   add a new partition");
-    println!("  p   print the partition table");
+    println!("  p   print the partition table (in order of the array)");
+    println!("  P   print the partition table (in order of the disk)");
     println!("  r   resize a partition");
     println!("  R   toggle the required partition flag");
     println!("  s   swap partition indexes");
@@ -118,12 +121,12 @@ fn help() {
     println!();
 }
 
-fn open_and_print(opt: &Opt, path: &PathBuf) -> Result<()> {
+fn open_and_print(opt: &Opt, path: &PathBuf, disk_order: bool) -> Result<()> {
     let mut f = fs::File::open(path)?;
     let len = f.seek(SeekFrom::End(0))?;
     let gpt = GPT::find_from(&mut f)?;
 
-    print(opt, path, &gpt, len)
+    print(opt, path, &gpt, len, disk_order)
 }
 
 fn ask_free_slot<F>(gpt: &GPT, ask: &F) -> Result<u32>
@@ -373,7 +376,7 @@ where
     Ok(())
 }
 
-pub fn print(opt: &Opt, path: &PathBuf, gpt: &GPT, len: u64) -> Result<()> {
+pub fn print(opt: &Opt, path: &PathBuf, gpt: &GPT, len: u64, disk_order: bool) -> Result<()> {
     use crate::opt::Column;
 
     let usable = gpt.header.last_usable_lba - gpt.header.first_usable_lba + 1;
@@ -440,7 +443,14 @@ pub fn print(opt: &Opt, path: &PathBuf, gpt: &GPT, len: u64) -> Result<()> {
     if base_path.ends_with(char::is_numeric) {
         base_path += "p";
     }
-    for (i, p) in gpt.iter().filter(|(_, x)| x.is_used()) {
+
+    let mut partitions: Vec<_> = gpt.iter().filter(|(_, x)| x.is_used()).collect();
+
+    if disk_order {
+        partitions.sort_by_key(|(_, x)| x.starting_lba);
+    }
+
+    for (i, p) in partitions {
         for column in opt.columns.iter() {
             match column {
                 Column::Device => table.add_cell(&format!("{}{}", base_path, i)),
