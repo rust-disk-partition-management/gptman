@@ -137,10 +137,11 @@ pub enum Error {
     /// An error that occurs when there are partitions with the same GUID in the same array.
     #[error(display = "conflict of partition GUIDs")]
     ConflictPartitionGUID,
-    /// An error that occurs when the partition has invalid boundary.
+    /// An error that occurs when a partition has an invalid boundary.
     /// The end sector must be greater or equal to the start sector of the partition.
+    /// Partitions must fit within the disk and must not overlap.
     #[error(
-        display = "invalid partition boundaries: the ending must start at or after the starting"
+        display = "invalid partition boundaries: partitions must have positive size, must not overlap, and must fit within the disk"
     )]
     InvalidPartitionBoundaries,
     /// An error that occurs when the user provide an invalid partition number.
@@ -750,6 +751,35 @@ impl GPT {
         Ok(())
     }
 
+    fn check_partition_boundaries(&self) -> Result<()> {
+        if self
+            .partitions
+            .iter()
+            .any(|x| x.ending_lba < x.starting_lba)
+        {
+            return Err(Error::InvalidPartitionBoundaries);
+        }
+
+        let mut partitions: Vec<&GPTPartitionEntry> =
+            self.partitions.iter().filter(|x| x.is_used()).collect();
+        partitions.sort_unstable_by_key(|x| x.starting_lba);
+        let first_available =
+            partitions
+                .iter()
+                .try_fold(self.header.first_usable_lba, |first_available, x| {
+                    if x.starting_lba >= first_available {
+                        Ok(x.ending_lba + 1)
+                    } else {
+                        Err(Error::InvalidPartitionBoundaries)
+                    }
+                })?;
+        if first_available > self.header.last_usable_lba + 1 {
+            return Err(Error::InvalidPartitionBoundaries);
+        }
+
+        Ok(())
+    }
+
     /// Write the GPT to a writer. This function will seek automatically in the writer to write the
     /// primary header and the backup header at their proper location.
     ///
@@ -775,6 +805,7 @@ impl GPT {
         if self.header.partition_entry_lba != 2 {
             self.header.partition_entry_lba = self.header.last_usable_lba + 1;
         }
+        self.check_partition_boundaries()?;
 
         let mut backup = self.header.clone();
         backup.primary_lba = self.header.backup_lba;
@@ -1433,6 +1464,36 @@ mod test {
             assert_eq!(gpt.header.backup_lba, 1);
         }
 
+        test(DISK1, 512);
+        test(DISK2, 4096);
+    }
+
+    #[test]
+    fn write_invalid_boundaries() {
+        fn test(path: &str, ss: u64) {
+            let mut cur = io::Cursor::new(fs::read(path).unwrap());
+            // start before first_usable_lba
+            let mut gpt = GPT::read_from(&mut cur, ss).unwrap();
+            gpt[1].starting_lba = gpt.header.first_usable_lba - 1;
+            gpt.write_into(&mut cur).unwrap_err();
+            // end before start
+            let mut gpt = GPT::read_from(&mut cur, ss).unwrap();
+            let start = gpt[1].starting_lba;
+            gpt[1].starting_lba = gpt[1].ending_lba;
+            gpt[1].ending_lba = start;
+            gpt.write_into(&mut cur).unwrap_err();
+            // overlap
+            let mut gpt = GPT::read_from(&mut cur, ss).unwrap();
+            gpt[1].ending_lba = gpt[2].starting_lba;
+            gpt.write_into(&mut cur).unwrap_err();
+            // end after last_usable_lba
+            let mut gpt = GPT::read_from(&mut cur, ss).unwrap();
+            gpt[2].ending_lba = gpt.header.last_usable_lba + 1;
+            gpt.write_into(&mut cur).unwrap_err();
+            // round-trip, everything valid
+            let mut gpt = GPT::read_from(&mut cur, ss).unwrap();
+            gpt.write_into(&mut cur).unwrap();
+        }
         test(DISK1, 512);
         test(DISK2, 4096);
     }
