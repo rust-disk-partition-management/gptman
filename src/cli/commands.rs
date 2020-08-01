@@ -116,8 +116,10 @@ fn help() {
     println!("  S   toggle the GUID specific bits");
     println!("  t   change a partition type");
     println!("  u   change partition UUID");
-    println!("  w   write table to disk and exit");
     println!("  Z   randomize disk GUID and all partition's GUID");
+    println!();
+    println!("  q   exit without saving");
+    println!("  w   write table to disk and exit");
     println!();
 }
 
