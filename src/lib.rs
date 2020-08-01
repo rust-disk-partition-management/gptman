@@ -640,10 +640,10 @@ impl GPT {
             let len = reader.seek(SeekFrom::End(0))?;
             reader.seek(SeekFrom::Start((len / sector_size - 1) * sector_size))?;
 
-            GPTHeader::read_from(&mut reader).or_else(|backup_err| {
+            GPTHeader::read_from(&mut reader).map_err(|backup_err| {
                 match (primary_err, backup_err) {
-                    (InvalidSignature, InvalidSignature) => Err(InvalidSignature),
-                    (x, y) => Err(Error::ReadError(Box::new(x), Box::new(y))),
+                    (InvalidSignature, InvalidSignature) => InvalidSignature,
+                    (x, y) => Error::ReadError(Box::new(x), Box::new(y)),
                 }
             })
         })?;
