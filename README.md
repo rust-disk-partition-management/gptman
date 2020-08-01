@@ -100,7 +100,7 @@ let ending_lba = starting_lba + size - 1;
 
 gpt[free_partition_number] = gptman::GPTPartitionEntry {
     partition_type_guid: [0xff; 16],
-    unique_parition_guid: [0xff; 16],
+    unique_partition_guid: [0xff; 16],
     starting_lba,
     ending_lba,
     attribute_bits: 0,
@@ -117,7 +117,7 @@ let mut gpt = gptman::GPT::new_from(&mut cur, ss as u64, [0xff; 16])
 
 gpt[1] = gptman::GPTPartitionEntry {
     partition_type_guid: [0xff; 16],
-    unique_parition_guid: [0xff; 16],
+    unique_partition_guid: [0xff; 16],
     starting_lba: gpt.header.first_usable_lba,
     ending_lba: gpt.header.last_usable_lba,
     attribute_bits: 0,

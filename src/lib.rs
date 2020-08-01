@@ -37,7 +37,7 @@
 //!
 //! gpt[free_partition_number] = gptman::GPTPartitionEntry {
 //!     partition_type_guid: [0xff; 16],
-//!     unique_parition_guid: [0xff; 16],
+//!     unique_partition_guid: [0xff; 16],
 //!     starting_lba,
 //!     ending_lba,
 //!     attribute_bits: 0,
@@ -54,7 +54,7 @@
 //!
 //! gpt[1] = gptman::GPTPartitionEntry {
 //!     partition_type_guid: [0xff; 16],
-//!     unique_parition_guid: [0xff; 16],
+//!     unique_partition_guid: [0xff; 16],
 //!     starting_lba: gpt.header.first_usable_lba,
 //!     ending_lba: gpt.header.last_usable_lba,
 //!     attribute_bits: 0,
@@ -424,7 +424,7 @@ impl Serialize for PartitionName {
 /// // NOTE: partition entries starts at 1
 /// gpt[1] = gptman::GPTPartitionEntry {
 ///     partition_type_guid: [0xff; 16],
-///     unique_parition_guid: [0xff; 16],
+///     unique_partition_guid: [0xff; 16],
 ///     starting_lba: gpt.header.first_usable_lba,
 ///     ending_lba: gpt.header.last_usable_lba,
 ///     attribute_bits: 0,
@@ -438,7 +438,7 @@ pub struct GPTPartitionEntry {
     /// 16 bytes representing the UUID of the partition's type.
     pub partition_type_guid: [u8; 16],
     /// 16 bytes representing the UUID of the partition.
-    pub unique_parition_guid: [u8; 16],
+    pub unique_partition_guid: [u8; 16],
     /// The position (in sectors) of the first sector (used) of the partition.
     pub starting_lba: u64,
     /// The position (in sectors) of the last sector (used) of the partition.
@@ -480,7 +480,7 @@ impl GPTPartitionEntry {
     pub fn empty() -> GPTPartitionEntry {
         GPTPartitionEntry {
             partition_type_guid: [0; 16],
-            unique_parition_guid: [0; 16],
+            unique_partition_guid: [0; 16],
             starting_lba: 0,
             ending_lba: 0,
             attribute_bits: 0,
@@ -523,7 +523,7 @@ impl GPTPartitionEntry {
     ///
     /// gpt[1] = gptman::GPTPartitionEntry {
     ///     partition_type_guid: [0xff; 16],
-    ///     unique_parition_guid: [0xff; 16],
+    ///     unique_partition_guid: [0xff; 16],
     ///     starting_lba: gpt.header.first_usable_lba,
     ///     ending_lba: gpt.header.last_usable_lba,
     ///     attribute_bits: 0,
@@ -730,7 +730,7 @@ impl GPT {
             .partitions
             .iter()
             .filter(|x| x.is_used())
-            .map(|x| x.unique_parition_guid)
+            .map(|x| x.unique_partition_guid)
             .collect();
         if guids.len() != guids.iter().collect::<HashSet<_>>().len() {
             return Err(Error::ConflictPartitionGUID);
@@ -808,7 +808,7 @@ impl GPT {
     ///
     /// gpt[1] = gptman::GPTPartitionEntry {
     ///     partition_type_guid: [0xff; 16],
-    ///     unique_parition_guid: [0xff; 16],
+    ///     unique_partition_guid: [0xff; 16],
     ///     starting_lba: gpt.header.first_usable_lba + 5,
     ///     ending_lba: gpt.header.last_usable_lba - 5,
     ///     attribute_bits: 0,
@@ -860,7 +860,7 @@ impl GPT {
     ///
     /// gpt[1] = gptman::GPTPartitionEntry {
     ///     partition_type_guid: [0xff; 16],
-    ///     unique_parition_guid: [0xff; 16],
+    ///     unique_partition_guid: [0xff; 16],
     ///     starting_lba: gpt.header.first_usable_lba + 5,
     ///     ending_lba: gpt.header.last_usable_lba - 5,
     ///     attribute_bits: 0,
@@ -895,7 +895,7 @@ impl GPT {
     ///
     /// gpt[1] = gptman::GPTPartitionEntry {
     ///     partition_type_guid: [0xff; 16],
-    ///     unique_parition_guid: [0xff; 16],
+    ///     unique_partition_guid: [0xff; 16],
     ///     starting_lba: gpt.header.first_usable_lba + 5,
     ///     ending_lba: gpt.header.last_usable_lba - 5,
     ///     attribute_bits: 0,
@@ -931,7 +931,7 @@ impl GPT {
     ///
     /// gpt[1] = gptman::GPTPartitionEntry {
     ///     partition_type_guid: [0xff; 16],
-    ///     unique_parition_guid: [0xff; 16],
+    ///     unique_partition_guid: [0xff; 16],
     ///     starting_lba: gpt.header.first_usable_lba + 10,
     ///     ending_lba: gpt.header.last_usable_lba - 5,
     ///     attribute_bits: 0,
@@ -1296,7 +1296,7 @@ mod test {
             attribute_bits: 0,
             partition_type_guid: [1; 16],
             partition_name: "Baz".into(),
-            unique_parition_guid: [1; 16],
+            unique_partition_guid: [1; 16],
         };
 
         assert_eq!(
@@ -1328,7 +1328,7 @@ mod test {
             attribute_bits: 0,
             partition_type_guid: [1; 16],
             partition_name: "Baz".into(),
-            unique_parition_guid: [1; 16],
+            unique_partition_guid: [1; 16],
         };
 
         assert_eq!(gpt.find_first_place(8), Some(53));
@@ -1505,7 +1505,7 @@ mod test {
                 partition_name: "".into(),
                 partition_type_guid: [1; 16],
                 starting_lba: align,
-                unique_parition_guid: [1; 16],
+                unique_partition_guid: [1; 16],
             };
             gpt[2] = GPTPartitionEntry {
                 attribute_bits: 0,
@@ -1513,7 +1513,7 @@ mod test {
                 partition_name: "".into(),
                 partition_type_guid: [1; 16],
                 starting_lba: 4 * align,
-                unique_parition_guid: [2; 16],
+                unique_partition_guid: [2; 16],
             };
             gpt.write_into(&mut cur).unwrap();
             let gpt = GPT::read_from(&mut cur, ss).unwrap();
@@ -1540,7 +1540,7 @@ mod test {
                 partition_name: "".into(),
                 partition_type_guid: [1; 16],
                 starting_lba: gpt.header.first_usable_lba,
-                unique_parition_guid: [1; 16],
+                unique_partition_guid: [1; 16],
             };
             gpt.write_into(&mut cur).unwrap();
             let gpt = GPT::read_from(&mut cur, ss).unwrap();
@@ -1553,7 +1553,7 @@ mod test {
                 partition_name: "".into(),
                 partition_type_guid: [1; 16],
                 starting_lba: gpt.header.first_usable_lba + 1,
-                unique_parition_guid: [1; 16],
+                unique_partition_guid: [1; 16],
             };
             gpt.write_into(&mut cur).unwrap();
             let gpt = GPT::read_from(&mut cur, ss).unwrap();

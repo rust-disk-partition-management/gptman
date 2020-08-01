@@ -451,7 +451,7 @@ pub fn print(opt: &Opt, path: &PathBuf, gpt: &GPT, len: u64) -> Result<()> {
                 Column::Type => {
                     table.add_cell(p.partition_type_guid.display_partition_type_guid().as_str())
                 }
-                Column::GUID => table.add_cell(p.unique_parition_guid.display_uuid().as_str()),
+                Column::GUID => table.add_cell(p.unique_partition_guid.display_uuid().as_str()),
                 Column::Attributes => table.add_cell(
                     p.attribute_bits
                         .display_attribute_bits(p.partition_type_guid)
@@ -471,7 +471,7 @@ where
     F: Fn(&str) -> Result<String>,
 {
     let max_size: u64 = gpt.get_maximum_partition_size()?;
-    let default_unique_parition_guid = generate_random_uuid();
+    let default_unique_partition_guid = generate_random_uuid();
 
     let i = ask_free_slot(gpt, ask)?;
 
@@ -489,8 +489,8 @@ where
     let starting_lba = ask_starting_lba(gpt, ask, size)?;
     let partition_name = ask("Partition name:")?.as_str().into();
 
-    let unique_parition_guid = match ask("Partition GUID (default: random):")?.as_ref() {
-        "" => default_unique_parition_guid,
+    let unique_partition_guid = match ask("Partition GUID (default: random):")?.as_ref() {
+        "" => default_unique_partition_guid,
         x => convert_str_to_array(x)?,
     };
 
@@ -500,7 +500,7 @@ where
         attribute_bits: 0,
         partition_name,
         partition_type_guid,
-        unique_parition_guid,
+        unique_partition_guid,
     };
 
     Ok(())
@@ -610,16 +610,16 @@ fn change_partition_guid<F>(gpt: &mut GPT, ask: &F) -> Result<()>
 where
     F: Fn(&str) -> Result<String>,
 {
-    let default_unique_parition_guid = generate_random_uuid();
+    let default_unique_partition_guid = generate_random_uuid();
 
     let i = ask_used_slot(gpt, ask)?;
 
-    let unique_parition_guid = match ask("Partition GUID (default: random):")?.as_ref() {
-        "" => default_unique_parition_guid,
+    let unique_partition_guid = match ask("Partition GUID (default: random):")?.as_ref() {
+        "" => default_unique_partition_guid,
         x => convert_str_to_array(x)?,
     };
 
-    gpt[i].unique_parition_guid = unique_parition_guid;
+    gpt[i].unique_partition_guid = unique_partition_guid;
 
     Ok(())
 }
@@ -842,7 +842,7 @@ fn randomize(gpt: &mut GPT) -> Result<()> {
     gpt.header.disk_guid = generate_random_uuid();
 
     for (_, p) in gpt.iter_mut() {
-        p.unique_parition_guid = generate_random_uuid();
+        p.unique_partition_guid = generate_random_uuid();
     }
 
     Ok(())
