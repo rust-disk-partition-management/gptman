@@ -158,7 +158,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 /// A GUID Partition Table header as describe on
 /// [Wikipedia's page](https://en.wikipedia.org/wiki/GUID_Partition_Table#Partition_table_header_(LBA_1)).
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub struct GPTHeader {
     /// GPT signature (must be "EFI PART").
     pub signature: [u8; 8],
@@ -337,7 +337,7 @@ impl GPTHeader {
 }
 
 /// A wrapper type for `String` that represents a partition's name.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PartitionName(String);
 
 impl PartitionName {
@@ -433,7 +433,7 @@ impl Serialize for PartitionName {
 ///
 /// assert_eq!(gpt[1].partition_name.as_str(), "A Robot Named Fight!");
 /// ```
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub struct GPTPartitionEntry {
     /// 16 bytes representing the UUID of the partition's type.
     pub partition_type_guid: [u8; 16],
@@ -567,7 +567,7 @@ impl GPTPartitionEntry {
 ///     }
 /// }
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GPT {
     /// Sector size of the disk.
     ///
