@@ -218,6 +218,11 @@ impl GPTHeader {
     }
 
     /// Attempt to read a GPT header from a reader.
+    ///
+    /// # Implementation notes
+    ///
+    /// The field `last_usable_lba` is not updated to reflect the actual size of the disk. You must
+    /// do this yourself by calling `update_from`.
     pub fn read_from<R: ?Sized>(mut reader: &mut R) -> Result<GPTHeader>
     where
         R: Read + Seek,
@@ -621,7 +626,13 @@ impl GPT {
     /// Read the GPT on a reader. This function will try to read the backup header if the primary
     /// header could not be read.
     ///
-    /// # Examples:
+    /// # Implementation notes
+    ///
+    /// The field `last_usable_lba` on the header is not updated to reflect the actual size of the
+    /// disk. You must do this yourself by calling `update_from`.
+    ///
+    /// # Examples
+    ///
     /// Basic usage:
     /// ```
     /// let mut f = std::fs::File::open("tests/fixtures/disk1.img")
