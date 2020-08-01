@@ -1511,23 +1511,24 @@ mod test {
     #[test]
     fn determine_partition_alignment() {
         fn test(ss: u64, align: u64) {
-            let data = vec![0; ss as usize * align as usize * 10];
+            let data = vec![0; ss as usize * align as usize * 21];
             let mut cur = io::Cursor::new(data);
             let mut gpt = GPT::new_from(&mut cur, ss, [1; 16]).unwrap();
             gpt[1] = GPTPartitionEntry {
                 attribute_bits: 0,
-                ending_lba: 2 * align,
+                ending_lba: 6 * align,
                 partition_name: "".into(),
                 partition_type_guid: [1; 16],
-                starting_lba: align,
+                // start at least at first_usable_lba in smallest case
+                starting_lba: 5 * align,
                 unique_partition_guid: [1; 16],
             };
             gpt[2] = GPTPartitionEntry {
                 attribute_bits: 0,
-                ending_lba: 8 * align,
+                ending_lba: 16 * align,
                 partition_name: "".into(),
                 partition_type_guid: [1; 16],
-                starting_lba: 4 * align,
+                starting_lba: 8 * align,
                 unique_partition_guid: [2; 16],
             };
             gpt.write_into(&mut cur).unwrap();
