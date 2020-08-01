@@ -743,31 +743,31 @@ where
     let i = ask_used_slot(gpt, ask)?;
 
     let free_sectors = gpt.find_free_sectors();
-    let mut p = &mut gpt[i];
 
-    let max_size: u64 = p.size()?
-        + free_sectors
-            .iter()
-            .skip_while(|(i, _)| *i < p.starting_lba)
-            .take(1)
-            .find(|(i, _)| *i == p.ending_lba + 1)
-            .map(|(_, l)| l)
-            .unwrap_or(&0);
+    let max_size = {
+        let align = gpt.align;
+        let p = &mut gpt[i];
 
-    let size = loop {
-        match ask_with_default!(
-            ask,
-            |x| u64::from_str_radix(x, 10),
-            "Partition size",
-            max_size
-        )? {
-            0 => println!("The size must be at least 1 sector"),
-            x if x > max_size => println!("The maximum size is {}", max_size),
-            x => break x,
-        }
+        (p.size()?
+            + free_sectors
+                .iter()
+                .skip_while(|(m, _)| *m < p.starting_lba)
+                .take(1)
+                .find(|(m, _)| *m == ((p.ending_lba + 1) / align + 1) * align)
+                .map(|(_, n)| n)
+                .unwrap_or(&0))
+            / align
+            * align
     };
 
-    p.ending_lba = p.starting_lba + size - 1;
+    let size = ask_with_default!(
+        ask,
+        |x| parse_lba(gpt, x, 1, max_size),
+        "Partition size",
+        max_size
+    )?;
+
+    gpt[i].ending_lba = gpt[i].starting_lba + size - 1;
 
     Ok(())
 }
