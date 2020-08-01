@@ -335,7 +335,7 @@ impl GPTHeader {
             self.primary_lba = len - 1;
         }
         self.last_usable_lba = len - partition_array_size - 1 - 1;
-        self.first_usable_lba = self.partition_entry_lba + partition_array_size;
+        self.first_usable_lba = 2 + partition_array_size;
 
         Ok(())
     }
@@ -1383,11 +1383,15 @@ mod test {
             let mut gpt = GPT::read_from(&mut cur, ss).unwrap();
             assert_eq!(gpt.header.backup_lba, 1);
             let partition_entry_lba = gpt.header.partition_entry_lba;
+            let first_usable_lba = gpt.header.first_usable_lba;
+            let last_usable_lba = gpt.header.last_usable_lba;
             gpt.write_into(&mut cur).unwrap();
             let mut gpt = GPT::read_from(&mut cur, ss).unwrap();
             assert_eq!(gpt.header.primary_lba, 1);
             assert_eq!(gpt.header.backup_lba, backup_lba);
             assert_eq!(gpt.header.partition_entry_lba, 2);
+            assert_eq!(gpt.header.first_usable_lba, first_usable_lba);
+            assert_eq!(gpt.header.last_usable_lba, last_usable_lba);
 
             gpt.header.crc32_checksum = 1;
             cur.seek(SeekFrom::Start(ss)).unwrap();
