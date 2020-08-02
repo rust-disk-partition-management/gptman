@@ -182,6 +182,8 @@ pub struct GPTHeader {
     /// 16 bytes representing the UUID of the GPT.
     pub disk_guid: [u8; 16],
     /// Location (in sectors) of the partition entries array.
+    ///
+    /// This is always `2` if the header is a primary header and not the backup header.
     pub partition_entry_lba: u64,
     /// Number of partition entries in the array.
     pub number_of_partition_entries: u32,
@@ -317,9 +319,9 @@ impl GPTHeader {
         self.partition_entry_array_crc32 = self.generate_partition_entry_array_crc32(partitions);
     }
 
-    /// Updates the header to match the specifications of the reader given in argument.
-    /// `first_usable_lba`, `last_usable_lba`, `primary_lba`, `backup_lba` will be updated after
-    /// this operation.
+    /// Updates the header to match the specifications of the seeker given in argument.
+    /// `first_usable_lba`, `last_usable_lba`, `primary_lba`, `backup_lba`, `partition_entry_lba`
+    /// will be updated after this operation.
     pub fn update_from<S: ?Sized>(&mut self, seeker: &mut S, sector_size: u64) -> Result<()>
     where
         S: Seek,
@@ -337,6 +339,13 @@ impl GPTHeader {
         }
         self.last_usable_lba = len - partition_array_size - 1 - 1;
         self.first_usable_lba = 2 + partition_array_size;
+        // NOTE: the partition_entry_lba is either 2 either something near the end of the disk.
+        //       If it is something near the end of the disk, it means the self object is a backup
+        //       GPT header (which is located at the end of the disk) and its partition_entry_lba
+        //       must be updated accordingly
+        if self.partition_entry_lba != 2 {
+            self.partition_entry_lba = self.last_usable_lba + 1;
+        }
 
         Ok(())
     }
@@ -783,7 +792,24 @@ impl GPT {
     /// Write the GPT to a writer. This function will seek automatically in the writer to write the
     /// primary header and the backup header at their proper location.
     ///
-    /// # Examples:
+    /// # Implementation notes
+    ///
+    /// Calling this function will call `update_from` in order to update the `last_usable_lba`
+    /// among other fields of the GPT header, thus modifying the `self` object.
+    ///
+    /// # Errors
+    ///
+    /// The partitions will be checked for consistency before being wrote to disk:
+    ///
+    /// * the partition GUIDs must be unique,
+    /// * the partitions must have positive size,
+    /// * the partitions must not overlap,
+    /// * the partitions must fit within the disk.
+    ///
+    /// Note that the `self` object will be updated even if one of those error occurs.
+    ///
+    /// # Examples
+    ///
     /// Basic usage:
     /// ```
     /// let ss = 512;
@@ -800,11 +826,9 @@ impl GPT {
     where
         W: Write + Seek,
     {
-        self.check_partition_guids()?;
         self.header.update_from(&mut writer, self.sector_size)?;
-        if self.header.partition_entry_lba != 2 {
-            self.header.partition_entry_lba = self.header.last_usable_lba + 1;
-        }
+
+        self.check_partition_guids()?;
         self.check_partition_boundaries()?;
 
         let mut backup = self.header.clone();
