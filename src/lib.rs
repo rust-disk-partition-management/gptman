@@ -90,6 +90,7 @@ use std::io::{Read, Seek, SeekFrom, Write};
 use std::ops::{Index, IndexMut};
 
 /// Linux specific helpers
+#[cfg(target_os = "linux")]
 pub mod linux;
 
 const DEFAULT_ALIGN: u64 = 2048;
@@ -259,7 +260,7 @@ impl GPTHeader {
     }
 
     /// Write the GPT header into a writer. This operation will update the CRC32 checksums of the
-    /// current struct and seek at the correct location before trying to write to disk.
+    /// current struct and seek at the location `primary_lba` before trying to write to disk.
     pub fn write_into<W: ?Sized>(
         &mut self,
         mut writer: &mut W,
@@ -825,10 +826,7 @@ impl GPT {
     /// Returns the backup `GPTHeader` that has been wrote in case of success (or the primary
     /// `GPTHeader` if `self` was using a backup header).
     ///
-    /// # Implementation notes
-    ///
-    /// Calling this function will call `update_from` in order to update the `last_usable_lba`
-    /// among other fields of the GPT header, thus modifying the `self` object.
+    /// Note that the checksums are re-calculated, thus updating the header.
     ///
     /// # Errors
     ///
@@ -838,8 +836,6 @@ impl GPT {
     /// * the partitions must have positive size,
     /// * the partitions must not overlap,
     /// * the partitions must fit within the disk.
-    ///
-    /// Note that the `self` object will be updated even if one of those error occurs.
     ///
     /// # Examples
     ///
@@ -859,8 +855,6 @@ impl GPT {
     where
         W: Write + Seek,
     {
-        self.header.update_from(&mut writer, self.sector_size)?;
-
         self.check_partition_guids()?;
         self.check_partition_boundaries()?;
 
@@ -1751,5 +1745,22 @@ mod test {
 
         test(512);
         test(4096);
+    }
+
+    #[test]
+    fn read_from_smaller_disk_and_write_to_bigger_disk() {
+        fn test(path: &str, ss: u64) {
+            let mut f = fs::File::open(path).unwrap();
+            let len = f.seek(SeekFrom::End(0)).unwrap();
+            let gpt1 = GPT::read_from(&mut f, ss).unwrap();
+            let data = vec![0; len as usize * 2];
+            let mut cur = io::Cursor::new(data);
+            gpt1.clone().write_into(&mut cur).unwrap();
+            let gpt2 = GPT::read_from(&mut cur, ss).unwrap();
+            assert_eq!(gpt1, gpt2);
+        }
+
+        test(DISK1, 512);
+        test(DISK2, 4096);
     }
 }

@@ -1,5 +1,3 @@
-#![cfg(target_os = "linux")]
-
 use std::fs;
 use std::io;
 use std::os::linux::fs::MetadataExt;
