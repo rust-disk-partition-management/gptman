@@ -259,7 +259,7 @@ impl GPTHeader {
     }
 
     /// Write the GPT header into a writer. This operation will update the CRC32 checksums of the
-    /// current struct and seek at the correct location before trying to write to disk.
+    /// current struct and seek at the location `primary_lba` before trying to write to disk.
     pub fn write_into<W: ?Sized>(
         &mut self,
         mut writer: &mut W,
@@ -825,10 +825,7 @@ impl GPT {
     /// Returns the backup `GPTHeader` that has been wrote in case of success (or the primary
     /// `GPTHeader` if `self` was using a backup header).
     ///
-    /// # Implementation notes
-    ///
-    /// Calling this function will call `update_from` in order to update the `last_usable_lba`
-    /// among other fields of the GPT header, thus modifying the `self` object.
+    /// Note that the checksums are re-calculated, thus updating the header.
     ///
     /// # Errors
     ///
@@ -838,8 +835,6 @@ impl GPT {
     /// * the partitions must have positive size,
     /// * the partitions must not overlap,
     /// * the partitions must fit within the disk.
-    ///
-    /// Note that the `self` object will be updated even if one of those error occurs.
     ///
     /// # Examples
     ///
@@ -859,8 +854,6 @@ impl GPT {
     where
         W: Write + Seek,
     {
-        self.header.update_from(&mut writer, self.sector_size)?;
-
         self.check_partition_guids()?;
         self.check_partition_boundaries()?;
 
