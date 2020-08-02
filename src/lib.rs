@@ -90,6 +90,7 @@ use std::io::{Read, Seek, SeekFrom, Write};
 use std::ops::{Index, IndexMut};
 
 /// Linux specific helpers
+#[cfg(target_os = "linux")]
 pub mod linux;
 
 const DEFAULT_ALIGN: u64 = 2048;
