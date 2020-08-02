@@ -349,6 +349,21 @@ impl GPTHeader {
 
         Ok(())
     }
+
+    /// Returns `true` if the `GPTHeader` is a primary copy (the header is located at the beginning
+    /// of the disk).
+    pub fn is_primary(&self) -> bool {
+        self.primary_lba == 1
+    }
+
+    /// Returns `true` if the `GPTHeader` is a backup copy (the header is located at the end of the
+    /// disk).
+    ///
+    /// Note that when the header is a backup copy, the `primary_lba` is the LBA of the backup copy
+    /// and the `backup_lba` is the LBA of the primary copy.
+    pub fn is_backup(&self) -> bool {
+        !self.is_primary()
+    }
 }
 
 /// A wrapper type for `String` that represents a partition's name.
@@ -792,6 +807,9 @@ impl GPT {
     /// Write the GPT to a writer. This function will seek automatically in the writer to write the
     /// primary header and the backup header at their proper location.
     ///
+    /// Returns the backup `GPTHeader` that has been wrote in case of success (or the primary
+    /// `GPTHeader` if `self` was using a backup header).
+    ///
     /// # Implementation notes
     ///
     /// Calling this function will call `update_from` in order to update the `last_usable_lba`
@@ -820,9 +838,9 @@ impl GPT {
     ///
     /// // actually write:
     /// gpt.write_into(&mut cur)
-    ///     .expect("could not write GPT to disk")
+    ///     .expect("could not write GPT to disk");
     /// ```
-    pub fn write_into<W: ?Sized>(&mut self, mut writer: &mut W) -> Result<()>
+    pub fn write_into<W: ?Sized>(&mut self, mut writer: &mut W) -> Result<GPTHeader>
     where
         W: Write + Seek,
     {
@@ -844,7 +862,7 @@ impl GPT {
             .write_into(&mut writer, self.sector_size, &self.partitions)?;
         backup.write_into(&mut writer, self.sector_size, &self.partitions)?;
 
-        Ok(())
+        Ok(backup)
     }
 
     /// Finds the partition where the given sector resides.
@@ -1140,6 +1158,21 @@ impl GPT {
 
         Ok(())
     }
+
+    /// Returns `true` if the `GPTHeader` is a primary copy (the header is located at the beginning
+    /// of the disk).
+    pub fn is_primary(&self) -> bool {
+        self.header.is_primary()
+    }
+
+    /// Returns `true` if the `GPTHeader` is a backup copy (the header is located at the end of the
+    /// disk).
+    ///
+    /// Note that when the header is a backup copy, the `primary_lba` is the LBA of the backup copy
+    /// and the `backup_lba` is the LBA of the primary copy.
+    pub fn is_backup(&self) -> bool {
+        self.header.is_backup()
+    }
 }
 
 impl Index<u32> for GPT {
@@ -1431,22 +1464,27 @@ mod test {
         fn test(path: &str, ss: u64) {
             let mut cur = io::Cursor::new(fs::read(path).unwrap());
             let mut gpt = GPT::read_from(&mut cur, ss).unwrap();
+            let primary = gpt.clone();
             gpt.header.crc32_checksum = 1;
             let backup_lba = gpt.header.backup_lba;
             cur.seek(SeekFrom::Start(ss)).unwrap();
             serialize_into(&mut cur, &gpt.header).unwrap();
             let mut gpt = GPT::read_from(&mut cur, ss).unwrap();
-            assert_eq!(gpt.header.backup_lba, 1);
+            assert!(!gpt.is_primary());
+            assert!(gpt.is_backup());
             let partition_entry_lba = gpt.header.partition_entry_lba;
             let first_usable_lba = gpt.header.first_usable_lba;
             let last_usable_lba = gpt.header.last_usable_lba;
-            gpt.write_into(&mut cur).unwrap();
+            let primary_header = gpt.write_into(&mut cur).unwrap();
+            assert!(primary_header.is_primary());
+            assert!(!primary_header.is_backup());
             let mut gpt = GPT::read_from(&mut cur, ss).unwrap();
             assert_eq!(gpt.header.primary_lba, 1);
             assert_eq!(gpt.header.backup_lba, backup_lba);
             assert_eq!(gpt.header.partition_entry_lba, 2);
             assert_eq!(gpt.header.first_usable_lba, first_usable_lba);
             assert_eq!(gpt.header.last_usable_lba, last_usable_lba);
+            assert_eq!(primary, gpt);
 
             gpt.header.crc32_checksum = 1;
             cur.seek(SeekFrom::Start(ss)).unwrap();
