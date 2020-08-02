@@ -1,7 +1,9 @@
 //! A library that allows managing GUID partition tables.
 //!
 //! # Examples
+//!
 //! Reading all the partitions of a disk:
+//!
 //! ```
 //! let mut f = std::fs::File::open("tests/fixtures/disk1.img")
 //!     .expect("could not open disk");
@@ -20,7 +22,9 @@
 //!     }
 //! }
 //! ```
+//!
 //! Creating new partitions:
+//!
 //! ```
 //! let mut f = std::fs::File::open("tests/fixtures/disk1.img")
 //!     .expect("could not open disk");
@@ -44,7 +48,9 @@
 //!     partition_name: "A Robot Named Fight!".into(),
 //! };
 //! ```
+//!
 //! Creating a new partition table with one entry that fills the entire disk:
+//!
 //! ```
 //! let ss = 512;
 //! let data = vec![0; 100 * ss as usize];
@@ -183,7 +189,7 @@ pub struct GPTHeader {
     pub disk_guid: [u8; 16],
     /// Location (in sectors) of the partition entries array.
     ///
-    /// This is always `2` if the header is a primary header and not the backup header.
+    /// This is always `2` if the header is a primary header and not a backup header.
     pub partition_entry_lba: u64,
     /// Number of partition entries in the array.
     pub number_of_partition_entries: u32,
@@ -443,6 +449,7 @@ impl Serialize for PartitionName {
 /// A GPT partition's entry in the partition array.
 ///
 /// # Examples
+///
 /// Basic usage:
 /// ```
 /// let ss = 512;
@@ -481,6 +488,7 @@ pub struct GPTPartitionEntry {
     /// The partition name.
     ///
     /// # Examples
+    ///
     /// Basic usage:
     /// ```
     /// let name: gptman::PartitionName = "A Robot Named Fight!".into();
@@ -494,6 +502,7 @@ impl GPTPartitionEntry {
     /// Creates an empty partition entry
     ///
     /// # Examples
+    ///
     /// Basic usage:
     /// ```
     /// let ss = 512;
@@ -540,9 +549,11 @@ impl GPTPartitionEntry {
     /// long at minimum.
     ///
     /// # Errors
+    ///
     /// This function will return an error if the `ending_lba` is lesser than the `starting_lba`.
     ///
-    /// # Examples:
+    /// # Examples
+    ///
     /// Basic usage:
     /// ```
     /// let ss = 512;
@@ -574,10 +585,11 @@ impl GPTPartitionEntry {
     }
 }
 
-/// A type representing a GUID partition table including its partition, the sector size of the disk
-/// and the alignment of the partitions to the sectors.
+/// A type representing a GUID partition table including its partitions, the sector size of the
+/// disk and the alignment of the partitions to the sectors.
 ///
-/// # Examples:
+/// # Examples
+///
 /// Read an existing GPT on a reader and list its partitions:
 /// ```
 /// let mut f = std::fs::File::open("tests/fixtures/disk1.img")
@@ -614,6 +626,7 @@ pub struct GPT {
     /// so they return only values aligned to the alignment.
     ///
     /// # Panics
+    ///
     /// The value must be greater than 0, otherwise you will encounter divisions by zero.
     pub align: u64,
 }
@@ -621,7 +634,8 @@ pub struct GPT {
 impl GPT {
     /// Make a new GPT based on a reader. (This operation does not write anything to disk!)
     ///
-    /// # Examples:
+    /// # Examples
+    ///
     /// Basic usage:
     /// ```
     /// let ss = 512;
@@ -715,7 +729,8 @@ impl GPT {
     /// size of 512 but if it fails it will automatically try to read the GPT using a sector size
     /// of 4096.
     ///
-    /// # Examples:
+    /// # Examples
+    ///
     /// Basic usage:
     /// ```
     /// let mut f_512 = std::fs::File::open("tests/fixtures/disk1.img")
@@ -881,7 +896,8 @@ impl GPT {
     /// spot; and on the right: the size (in sectors) of the free spot.
     /// This function will automatically align with the alignment defined in the `GPT`.
     ///
-    /// # Examples:
+    /// # Examples
+    ///
     /// Basic usage:
     /// ```
     /// let ss = 512;
@@ -933,7 +949,8 @@ impl GPT {
     /// given in parameter.
     /// This function will automatically align with the alignment defined in the `GPT`.
     ///
-    /// # Examples:
+    /// # Examples
+    ///
     /// Basic usage:
     /// ```
     /// let ss = 512;
@@ -968,7 +985,8 @@ impl GPT {
     /// given in parameter.
     /// This function will automatically align with the alignment defined in the `GPT`.
     ///
-    /// # Examples:
+    /// # Examples
+    ///
     /// Basic usage:
     /// ```
     /// let ss = 512;
@@ -1004,7 +1022,8 @@ impl GPT {
     /// partition of the size given in parameter.
     /// This function will automatically align with the alignment defined in the `GPT`.
     ///
-    /// # Examples:
+    /// # Examples
+    ///
     /// Basic usage:
     /// ```
     /// let ss = 512;
@@ -1043,7 +1062,8 @@ impl GPT {
     /// Get the maximum size (in sectors) of a partition you could create in the GPT.
     /// This function will automatically align with the alignment defined in the `GPT`.
     ///
-    /// # Examples:
+    /// # Examples
+    ///
     /// Basic usage:
     /// ```
     /// let ss = 512;
@@ -1086,7 +1106,8 @@ impl GPT {
     /// `gpt[i] = gptman::GPTPartitionEntry::empty();`
     ///
     /// # Errors
-    /// This function will return an error if index is lesser or equal to 0 or greater than the
+    ///
+    /// This function will return an error if `i` is lesser or equal to `0` or greater than the
     /// number of partition entries (which can be obtained in the header).
     pub fn remove(&mut self, i: u32) -> Result<()> {
         if i == 0 || i > self.header.number_of_partition_entries {
@@ -1101,6 +1122,7 @@ impl GPT {
     /// Remove a partiton entry in the array that resides at a given sector.
     ///
     /// # Errors
+    ///
     /// It is an error to provide a sector which does not belong to a partition.
     pub fn remove_at_sector(&mut self, sector: u64) -> Result<()> {
         self.remove(

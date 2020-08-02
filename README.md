@@ -65,6 +65,7 @@ Library Usage
 -------------
 
 Reading all the partitions of a disk:
+
 ```rust
 let mut f = std::fs::File::open("tests/fixtures/disk1.img")
     .expect("could not open disk");
@@ -83,7 +84,9 @@ for (i, p) in gpt.iter() {
     }
 }
 ```
+
 Creating new partitions:
+
 ```rust
 let mut f = std::fs::File::open("tests/fixtures/disk1.img")
     .expect("could not open disk");
@@ -107,7 +110,9 @@ gpt[free_partition_number] = gptman::GPTPartitionEntry {
     partition_name: "A Robot Named Fight!".into(),
 };
 ```
+
 Creating a new partition table with one entry that fills the entire disk:
+
 ```rust
 let ss = 512;
 let data = vec![0; 100 * ss as usize];
