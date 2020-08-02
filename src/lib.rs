@@ -1745,4 +1745,21 @@ mod test {
         test(512);
         test(4096);
     }
+
+    #[test]
+    fn read_from_smaller_disk_and_write_to_bigger_disk() {
+        fn test(path: &str, ss: u64) {
+            let mut f = fs::File::open(path).unwrap();
+            let len = f.seek(SeekFrom::End(0)).unwrap();
+            let gpt1 = GPT::read_from(&mut f, ss).unwrap();
+            let data = vec![0; len as usize * 2];
+            let mut cur = io::Cursor::new(data);
+            gpt1.clone().write_into(&mut cur).unwrap();
+            let gpt2 = GPT::read_from(&mut cur, ss).unwrap();
+            assert_eq!(gpt1, gpt2);
+        }
+
+        test(DISK1, 512);
+        test(DISK2, 4096);
+    }
 }
