@@ -16,9 +16,8 @@ before_script:
   - rustup component add rustfmt-preview clippy
 
 script:
-  - |
-      rustfmt --check **/*.rs &&
-      cargo clippy --all-targets --all-features -- -D warnings &&
-      cargo build &&
-      cargo test &&
-      cargo doc
+  - [ "$TRAVIS_BRANCH" != master ] && rustfmt --check **/*.rs
+  - [ "$TRAVIS_BRANCH" != master ] && cargo clippy --all-targets --all-features -- -D warnings
+  - cargo build
+  - cargo test
+  - cargo doc
