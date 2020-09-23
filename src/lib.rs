@@ -72,16 +72,15 @@
 
 #[macro_use]
 extern crate err_derive;
-#[macro_use]
-extern crate serde_derive;
 #[cfg(target_os = "linux")]
 #[macro_use]
 extern crate nix;
 
 use bincode::{deserialize_from, serialize, serialize_into};
 use crc::{crc32, Hasher32};
-use serde::de::{Deserialize, Deserializer, SeqAccess, Visitor};
-use serde::ser::{Serialize, SerializeTuple, Serializer};
+use serde::de::{SeqAccess, Visitor};
+use serde::ser::SerializeTuple;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::fmt;
