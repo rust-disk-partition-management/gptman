@@ -559,7 +559,7 @@ where
     use crate::types::TYPE_MAP;
 
     let mut categories: Vec<_> = TYPE_MAP.keys().collect();
-    categories.sort_by(|a, b| a.to_ascii_lowercase().cmp(&b.to_ascii_lowercase()));
+    categories.sort_by_key(|&a| a.to_ascii_lowercase());
 
     loop {
         match ask("Partition type GUID (type L to list all types):")?.as_ref() {
