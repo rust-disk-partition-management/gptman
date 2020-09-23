@@ -5,6 +5,8 @@
 [![LOC](https://tokei.rs/b1/github/cecton/gptman)](https://github.com/cecton/gptman)
 [![Dependency Status](https://deps.rs/repo/github/cecton/gptman/status.svg)](https://deps.rs/repo/github/cecton/gptman)
 
+trigger build please!!
+
 gptman
 ======
 
