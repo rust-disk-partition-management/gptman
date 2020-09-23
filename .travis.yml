@@ -1,6 +1,4 @@
-sudo: false
 language: rust
-cache: cargo
 os:
   - linux
   - windows
@@ -16,9 +14,8 @@ before_script:
   - rustup component add rustfmt-preview clippy
 
 script:
-  - |
-      rustfmt --check **/*.rs &&
-      cargo clippy --all-targets --all-features -- -D warnings &&
-      cargo build &&
-      cargo test &&
-      cargo doc
+  - 'if [ "$TRAVIS_BRANCH" != master ] && [ "$TRAVIS_BRANCH" != "$TRAVIS_TAG" ]; then rustfmt --check **/*.rs; fi'
+  - 'if [ "$TRAVIS_BRANCH" != master ] && [ "$TRAVIS_BRANCH" != "$TRAVIS_TAG" ]; then cargo clippy --all-targets --all-features -- -D warnings; fi'
+  - cargo build
+  - cargo test
+  - cargo doc
