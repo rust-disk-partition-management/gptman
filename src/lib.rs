@@ -72,8 +72,6 @@
 
 #[macro_use]
 extern crate err_derive;
-#[macro_use]
-extern crate serde_derive;
 #[cfg(target_os = "linux")]
 #[macro_use]
 extern crate nix;
