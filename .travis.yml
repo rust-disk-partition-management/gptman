@@ -13,6 +13,7 @@ cache:
 before_script:
   - rustup component add rustfmt-preview clippy
 
+# NOTE: will only run rustfmt and clippy if the branch is not main (and not for tags)
 script:
   - 'if [ -n "$TRAVIS_PULL_REQUEST" ]; then rustfmt --check **/*.rs; fi'
   - 'if [ -n "$TRAVIS_PULL_REQUEST" ]; then cargo clippy --all-targets --all-features -- -D warnings; fi'
