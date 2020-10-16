@@ -22,12 +22,6 @@ required-features = ["cli"]
 [lib]
 name = "gptman"
 
-[badges]
-travis-ci = { repository = "cecton/gptman" }
-is-it-maintained-issue-resolution = { repository = "cecton/gptman" }
-is-it-maintained-open-issues = { repository = "cecton/gptman" }
-maintenance = { status = "actively-developed" }
-
 [dependencies]
 bincode = "1.3.1"
 serde = { version = "1.0.116", features = ["derive"] }

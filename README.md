@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/cecton/gptman.svg?branch=master)](https://travis-ci.org/cecton/gptman)
+![Rust](https://github.com/cecton/gptman/workflows/Rust/badge.svg)
 [![Latest Version](https://img.shields.io/crates/v/gptman.svg)](https://crates.io/crates/gptman)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](http://opensource.org/licenses/MIT)
 [![Docs.rs](https://docs.rs/gptman/badge.svg)](https://docs.rs/gptman)
