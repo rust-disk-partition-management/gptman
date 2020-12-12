@@ -1,0 +1,49 @@
+name: PR
+
+on:
+  pull_request:
+    branches: [ main ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  cargo-test-and-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v2
+
+      - name: Get main commit hash
+        id: main_commit
+        run: echo "::set-output name=hash::$(git rev-parse origin/main)"
+
+      - name: Cache target, rustup and cargo registry
+        id: cache-target
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.rustup
+            ~/.cargo/registry
+            ~/.cargo/bin
+            target
+          key: ${{ github.event.issue.number }}-${{ runner.os }}-pr
+          restore-keys: main-${{ steps.main_commit.outputs.hash }}
+
+      - name: cargo test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --workspace
+
+      - name: rustfmt
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all -- --check
+
+      - name: clippy
+        uses: actions-rs/clippy-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          args: -- -D warnings
