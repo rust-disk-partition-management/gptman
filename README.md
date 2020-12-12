@@ -1,6 +1,6 @@
 ![Rust](https://github.com/cecton/gptman/workflows/Rust/badge.svg)
 [![Latest Version](https://img.shields.io/crates/v/gptman.svg)](https://crates.io/crates/gptman)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](http://opensource.org/licenses/MIT)
+[License](https://img.shields.io/crates/l/gptman)]
 [![Docs.rs](https://docs.rs/gptman/badge.svg)](https://docs.rs/gptman)
 [![LOC](https://tokei.rs/b1/github/cecton/gptman)](https://github.com/cecton/gptman)
 [![Dependency Status](https://deps.rs/repo/github/cecton/gptman/status.svg)](https://deps.rs/repo/github/cecton/gptman)
