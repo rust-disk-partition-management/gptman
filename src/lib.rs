@@ -926,7 +926,7 @@ impl GPT {
             positions.push(partition.ending_lba);
         }
         positions.push(self.header.last_usable_lba + 1);
-        positions.sort();
+        positions.sort_unstable();
 
         positions
             .chunks(2)
