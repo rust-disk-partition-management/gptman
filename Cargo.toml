@@ -9,7 +9,7 @@ repository = "https://github.com/cecton/gptman"
 homepage = "https://github.com/cecton/gptman"
 documentation = "https://docs.rs/gptman"
 readme = "README.md"
-include = ["src/**/*.rs", "README.md", "LICENSE.Apache-2.0", "LICENSE.MIT"]
+include = ["src/**/*.rs", "tests/fixtures/*.img", "README.md", "LICENSE.Apache-2.0", "LICENSE.MIT"]
 keywords = ["gpt", "partition", "table", "filesystem", "disk"]
 categories = ["command-line-utilities"]
 
