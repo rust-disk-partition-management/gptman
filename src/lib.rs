@@ -70,10 +70,6 @@
 
 #![deny(missing_docs)]
 
-#[cfg(target_os = "linux")]
-#[macro_use]
-extern crate nix;
-
 use bincode::{deserialize_from, serialize, serialize_into};
 use crc::{crc32, Hasher32};
 use serde::de::{SeqAccess, Visitor};

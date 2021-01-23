@@ -5,6 +5,8 @@ use std::os::unix::io::AsRawFd;
 use thiserror::Error;
 
 mod ioctl {
+    use nix::{ioctl_none, ioctl_read_bad};
+
     ioctl_read_bad!(blksszget, 0x1268, u64);
     ioctl_none!(blkrrpart, 0x12, 95);
 }
