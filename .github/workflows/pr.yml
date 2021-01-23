@@ -14,23 +14,7 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v2
 
-      - name: Get main commit hash
-        id: main_commit
-        run: |
-          git fetch origin main
-          echo "::set-output name=hash::$(git rev-parse origin/main)"
-
-      - name: Cache target, rustup and cargo registry
-        id: cache-target
-        uses: actions/cache@v2
-        with:
-          path: |
-            ~/.rustup
-            ~/.cargo/registry
-            ~/.cargo/bin
-            target
-          key: ${{ github.event.issue.number }}-${{ runner.os }}-pr
-          restore-keys: main-${{ steps.main_commit.outputs.hash }}
+      - uses: Swatinem/rust-cache@v1
 
       - name: cargo test
         uses: actions-rs/cargo@v1
@@ -56,23 +40,7 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v2
 
-      - name: Get main commit hash
-        id: main_commit
-        run: |
-          git fetch origin main
-          echo "::set-output name=hash::$(git rev-parse origin/main)"
-
-      - name: Cache target, rustup and cargo registry
-        id: cache-target
-        uses: actions/cache@v2
-        with:
-          path: |
-            ~/.rustup
-            ~/.cargo/registry
-            ~/.cargo/bin
-            target
-          key: ${{ github.event.issue.number }}-${{ runner.os }}-pr
-          restore-keys: main-${{ steps.main_commit.outputs.hash }}
+      - uses: Swatinem/rust-cache@v1
 
       - name: cargo test
         uses: actions-rs/cargo@v1
@@ -86,23 +54,7 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v2
 
-      - name: Get main commit hash
-        id: main_commit
-        run: |
-          git fetch origin main
-          echo "::set-output name=hash::$(git rev-parse origin/main)"
-
-      - name: Cache target, rustup and cargo registry
-        id: cache-target
-        uses: actions/cache@v2
-        with:
-          path: |
-            ~/.rustup
-            ~/.cargo/registry
-            ~/.cargo/bin
-            target
-          key: ${{ github.event.issue.number }}-${{ runner.os }}-pr
-          restore-keys: main-${{ steps.main_commit.outputs.hash }}
+      - uses: Swatinem/rust-cache@v1
 
       - name: cargo test
         uses: actions-rs/cargo@v1
