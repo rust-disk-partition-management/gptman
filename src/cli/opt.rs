@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use structopt::clap::arg_enum;
 use structopt::StructOpt;
 
 arg_enum! {

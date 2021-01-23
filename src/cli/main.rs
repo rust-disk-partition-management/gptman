@@ -1,12 +1,3 @@
-#[macro_use]
-extern crate lazy_static;
-#[macro_use]
-extern crate clap;
-extern crate gptman;
-extern crate linefeed;
-extern crate rand;
-extern crate structopt;
-
 mod attribute_bits;
 mod commands;
 mod error;

@@ -2,6 +2,7 @@ use std::fs;
 use std::io;
 use std::os::linux::fs::MetadataExt;
 use std::os::unix::io::AsRawFd;
+use thiserror::Error;
 
 mod ioctl {
     ioctl_read_bad!(blksszget, 0x1268, u64);
@@ -15,19 +16,19 @@ const S_IFBLK: u32 = 0o60_000;
 #[derive(Debug, Error)]
 pub enum BlockError {
     /// An error that occurs when the metadata of the input file couldn't be retrieved
-    #[error(display = "failed to get metadata of device fd")]
-    Metadata(#[error(cause)] io::Error),
+    #[error("failed to get metadata of device fd")]
+    Metadata(#[from] io::Error),
     /// An error that occurs when the partition table could not be reloaded by the OS
-    #[error(display = "failed to reload partition table of device")]
-    RereadTable(#[error(cause)] nix::Error),
+    #[error("failed to reload partition table of device")]
+    RereadTable(#[from] nix::Error),
     /// An error that occurs when the sector size could not be retrieved from the OS
-    #[error(display = "failed to get the sector size of device")]
-    GetSectorSize(#[error(cause, no_from)] nix::Error),
+    #[error("failed to get the sector size of device: {0}")]
+    GetSectorSize(nix::Error),
     /// An error that occurs when an invalid return code has been received from an ioctl call
-    #[error(display = "invalid return value of ioctl ({} != 0)", _0)]
+    #[error("invalid return value of ioctl ({0} != 0)")]
     InvalidReturnValue(i32),
     /// An error that occurs when the file provided is not a block device
-    #[error(display = "not a block device")]
+    #[error("not a block device")]
     NotBlock,
 }
 

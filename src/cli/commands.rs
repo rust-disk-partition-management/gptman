@@ -1,12 +1,12 @@
 use crate::attribute_bits::AttributeBits;
 use crate::error::*;
-use crate::gptman::{GPTPartitionEntry, GPT};
 use crate::opt::Opt;
 use crate::table::Table;
 use crate::types::PartitionTypeGUID;
 use crate::uuid::{convert_str_to_array, generate_random_uuid, UUID};
 #[cfg(target_os = "linux")]
 use gptman::linux::reread_partition_table;
+use gptman::{GPTPartitionEntry, GPT};
 use std::fs;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::PathBuf;
