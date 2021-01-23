@@ -16,7 +16,9 @@ jobs:
 
       - name: Get main commit hash
         id: main_commit
-        run: echo "::set-output name=hash::$(git rev-parse origin/main)"
+        run: |
+          git fetch origin main
+          echo "::set-output name=hash::$(git rev-parse origin/main)"
 
       - name: Cache target, rustup and cargo registry
         id: cache-target
@@ -56,7 +58,9 @@ jobs:
 
       - name: Get main commit hash
         id: main_commit
-        run: echo "::set-output name=hash::$(git rev-parse origin/main)"
+        run: |
+          git fetch origin main
+          echo "::set-output name=hash::$(git rev-parse origin/main)"
 
       - name: Cache target, rustup and cargo registry
         id: cache-target
@@ -76,15 +80,17 @@ jobs:
           command: test
           args: --workspace
 
-  osx:
-    runs-on: osx-latest
+  macos:
+    runs-on: macos-latest
     steps:
       - name: Checkout source
         uses: actions/checkout@v2
 
       - name: Get main commit hash
         id: main_commit
-        run: echo "::set-output name=hash::$(git rev-parse origin/main)"
+        run: |
+          git fetch origin main
+          echo "::set-output name=hash::$(git rev-parse origin/main)"
 
       - name: Cache target, rustup and cargo registry
         id: cache-target
