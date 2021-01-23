@@ -10,8 +10,36 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  cargo-test:
+  test-linux:
     runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v2
+
+      - uses: Swatinem/rust-cache@v1
+
+      - name: cargo test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --workspace
+
+  test-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v2
+
+      - uses: Swatinem/rust-cache@v1
+
+      - name: cargo test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --workspace
+
+  test-macos:
+    runs-on: macos-latest
     steps:
       - name: Checkout source
         uses: actions/checkout@v2

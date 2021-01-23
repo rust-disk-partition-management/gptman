@@ -8,7 +8,7 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  cargo-test-and-lint:
+  test-and-lint:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout source
@@ -34,7 +34,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: -- -D warnings
 
-  windows:
+  test-windows:
     runs-on: windows-latest
     steps:
       - name: Checkout source
@@ -48,7 +48,7 @@ jobs:
           command: test
           args: --workspace
 
-  macos:
+  test-macos:
     runs-on: macos-latest
     steps:
       - name: Checkout source
