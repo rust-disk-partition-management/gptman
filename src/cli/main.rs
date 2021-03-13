@@ -70,7 +70,7 @@ fn main() {
             Ok(command) => {
                 if command == "q" {
                     break;
-                } else if command != "" {
+                } else if !command.is_empty() {
                     match execute(command.as_str(), &opt, len, &mut gpt, &ask) {
                         Ok(false) => {}
                         Ok(true) => break,
