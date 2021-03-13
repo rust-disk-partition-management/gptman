@@ -1,12 +1,3 @@
-#[macro_use]
-extern crate lazy_static;
-#[macro_use]
-extern crate clap;
-extern crate gptman;
-extern crate linefeed;
-extern crate rand;
-extern crate structopt;
-
 mod attribute_bits;
 mod commands;
 mod error;
@@ -79,7 +70,7 @@ fn main() {
             Ok(command) => {
                 if command == "q" {
                     break;
-                } else if command != "" {
+                } else if !command.is_empty() {
                     match execute(command.as_str(), &opt, len, &mut gpt, &ask) {
                         Ok(false) => {}
                         Ok(true) => break,

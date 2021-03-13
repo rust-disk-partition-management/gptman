@@ -70,12 +70,6 @@
 
 #![deny(missing_docs)]
 
-#[macro_use]
-extern crate err_derive;
-#[cfg(target_os = "linux")]
-#[macro_use]
-extern crate nix;
-
 use bincode::{deserialize_from, serialize, serialize_into};
 use crc::{crc32, Hasher32};
 use serde::de::{SeqAccess, Visitor};
@@ -87,6 +81,7 @@ use std::fmt;
 use std::io;
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::ops::{Index, IndexMut};
+use thiserror::Error;
 
 /// Linux specific helpers
 #[cfg(target_os = "linux")]
@@ -99,64 +94,57 @@ const MAX_ALIGN: u64 = 16384;
 #[derive(Debug, Error)]
 pub enum Error {
     /// Derialization errors.
-    #[error(display = "deserialization failed")]
-    Deserialize(#[error(cause)] bincode::Error),
+    #[error("deserialization failed")]
+    Deserialize(#[from] bincode::Error),
     /// I/O errors.
-    #[error(display = "generic I/O error")]
-    Io(#[error(cause)] io::Error),
+    #[error("generic I/O error")]
+    Io(#[from] io::Error),
     /// An error that occurs when the signature of the GPT isn't what would be expected ("EFI
     /// PART").
-    #[error(display = "invalid signature")]
+    #[error("invalid signature")]
     InvalidSignature,
     /// An error that occurs when the revision of the GPT isn't what would be expected (00 00 01
     /// 00).
-    #[error(display = "invalid revision")]
+    #[error("invalid revision")]
     InvalidRevision,
     /// An error that occurs when the header's size (in bytes) isn't what would be expected (92).
-    #[error(display = "invalid header size")]
+    #[error("invalid header size")]
     InvalidHeaderSize,
     /// An error that occurs when the CRC32 checksum of the header doesn't match the expected
     /// checksum for the actual header.
-    #[error(display = "corrupted CRC32 checksum ({} != {})", _0, _1)]
+    #[error("corrupted CRC32 checksum ({0} != {1})")]
     InvalidChecksum(u32, u32),
     /// An error that occurs when the CRC32 checksum of the partition entries array doesn't match
     /// the expected checksum for the actual partition entries array.
-    #[error(
-        display = "corrupted partition entry array CRC32 checksum ({} != {})",
-        _0,
-        _1
-    )]
+    #[error("corrupted partition entry array CRC32 checksum ({0} != {1})")]
     InvalidPartitionEntryArrayChecksum(u32, u32),
     /// An error that occurs when reading a GPT from a file did not succeeded.
     ///
     /// The first argument is the error that occurred when trying to read the primary header.
     /// The second argument is the error that occurred when trying to read the backup header.
-    #[error(
-        display = "could not read primary header ({}) nor backup header ({})",
-        _0,
-        _1
-    )]
+    #[error("could not read primary header ({0}) nor backup header ({1})")]
     ReadError(Box<Error>, Box<Error>),
     /// An error that occurs when there is not enough space left on the table to continue.
-    #[error(display = "no space left")]
+    #[error("no space left")]
     NoSpaceLeft,
     /// An error that occurs when there are partitions with the same GUID in the same array.
-    #[error(display = "conflict of partition GUIDs")]
+    #[error("conflict of partition GUIDs")]
     ConflictPartitionGUID,
     /// An error that occurs when a partition has an invalid boundary.
     /// The end sector must be greater or equal to the start sector of the partition.
     /// Partitions must fit within the disk and must not overlap.
     #[error(
-        display = "invalid partition boundaries: partitions must have positive size, must not overlap, and must fit within the disk"
+        "invalid partition boundaries: partitions must have positive size, must not overlap, \
+        and must fit within the disk"
     )]
     InvalidPartitionBoundaries,
     /// An error that occurs when the user provide an invalid partition number.
     /// The partition number must be between 1 and `number_of_partition_entries` (usually 128)
     /// included.
-    #[error(display = "invalid partition number: {}", _0)]
+    #[error("invalid partition number: {0}")]
     InvalidPartitionNumber(u32),
     /// An operation that required to find a partition, was unable to find that partition.
-    #[error(display = "partition not found")]
+    #[error("partition not found")]
     PartitionNotFound,
 }
 

@@ -8,27 +8,13 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  cargo-test-and-lint:
+  test-and-lint:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout source
         uses: actions/checkout@v2
 
-      - name: Get main commit hash
-        id: main_commit
-        run: echo "::set-output name=hash::$(git rev-parse origin/main)"
-
-      - name: Cache target, rustup and cargo registry
-        id: cache-target
-        uses: actions/cache@v2
-        with:
-          path: |
-            ~/.rustup
-            ~/.cargo/registry
-            ~/.cargo/bin
-            target
-          key: ${{ github.event.issue.number }}-${{ runner.os }}-pr
-          restore-keys: main-${{ steps.main_commit.outputs.hash }}
+      - uses: Swatinem/rust-cache@v1
 
       - name: cargo test
         uses: actions-rs/cargo@v1
@@ -47,3 +33,31 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: -- -D warnings
+
+  test-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v2
+
+      - uses: Swatinem/rust-cache@v1
+
+      - name: cargo test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --workspace
+
+  test-macos:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v2
+
+      - uses: Swatinem/rust-cache@v1
+
+      - name: cargo test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --workspace

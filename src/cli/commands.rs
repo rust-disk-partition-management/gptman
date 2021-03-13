@@ -1,12 +1,12 @@
 use crate::attribute_bits::AttributeBits;
 use crate::error::*;
-use crate::gptman::{GPTPartitionEntry, GPT};
 use crate::opt::Opt;
 use crate::table::Table;
 use crate::types::PartitionTypeGUID;
 use crate::uuid::{convert_str_to_array, generate_random_uuid, UUID};
 #[cfg(target_os = "linux")]
 use gptman::linux::reread_partition_table;
+use gptman::{GPTPartitionEntry, GPT};
 use std::fs;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::PathBuf;
@@ -86,7 +86,7 @@ where
         "c" => copy_partition(gpt, &opt.device, ask)?,
         "D" => print_raw_data(gpt, &opt.device)?,
         "a" => change_alignment(gpt, ask)?,
-        "Z" => randomize(gpt)?,
+        "Z" => randomize(gpt),
         "s" => swap_partition_index(gpt, ask)?,
         "C" => copy_all_partitions(gpt, &opt.device, ask)?,
         x => println!("{}: unknown command", x),
@@ -850,14 +850,12 @@ where
     Ok(())
 }
 
-fn randomize(gpt: &mut GPT) -> Result<()> {
+fn randomize(gpt: &mut GPT) {
     gpt.header.disk_guid = generate_random_uuid();
 
     for (_, p) in gpt.iter_mut() {
         p.unique_partition_guid = generate_random_uuid();
     }
-
-    Ok(())
 }
 
 fn swap_partition_index<F>(gpt: &mut GPT, ask: &F) -> Result<()>
