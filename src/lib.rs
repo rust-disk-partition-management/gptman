@@ -907,8 +907,7 @@ impl GPT {
     /// ```
     pub fn find_free_sectors(&self) -> Vec<(u64, u64)> {
         assert!(self.align > 0, "align must be greater than 0");
-        let mut positions = Vec::new();
-        positions.push(self.header.first_usable_lba - 1);
+        let mut positions = vec![self.header.first_usable_lba - 1];
         for partition in self.partitions.iter().filter(|x| x.is_used()) {
             positions.push(partition.starting_lba);
             positions.push(partition.ending_lba);
@@ -1517,7 +1516,7 @@ mod test {
             assert!(gpt.remove(1).is_ok());
             gpt.write_into(&mut cur).unwrap();
             let maybe_gpt = GPT::read_from(&mut cur, ss);
-            assert!(maybe_gpt.is_ok(), format!("{:?}", maybe_gpt.err()));
+            assert!(maybe_gpt.is_ok(), "{:?}", maybe_gpt.err());
 
             gpt.header.crc32_checksum = 1;
             cur.seek(SeekFrom::Start(ss)).unwrap();
@@ -1718,7 +1717,7 @@ mod test {
             assert_eq!(data[511], 0xaa);
             assert_eq!(data[446 + 4], 0xee);
             for (i, x) in data.iter().enumerate() {
-                if i < 446 || i >= 512 {
+                if !(446..512).contains(&i) {
                     assert_eq!(*x, 2);
                 }
             }
