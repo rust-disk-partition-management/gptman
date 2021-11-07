@@ -41,6 +41,12 @@ Features
 Installation
 ------------
 
+ *  With `curl`:
+
+    ```
+    curl -sSL http://gptman.cecton.com | sh -
+    ```
+
  *  CLI:
 
     ```
