@@ -753,7 +753,7 @@ where
                 .iter()
                 .skip_while(|(m, _)| *m < p.starting_lba)
                 .take(1)
-                .find(|(m, _)| *m == ((p.ending_lba + 1) / align + 1) * align)
+                .find(|(m, _)| *m == ((p.ending_lba + 1) / align) * align)
                 .map(|(_, n)| n)
                 .unwrap_or(&0))
             / align
