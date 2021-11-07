@@ -37,6 +37,7 @@ Features
  *  Randomize disk's GUID and all partition's GUID (Z)
  *  Copy/clone all partitions from one disk and insert it to another (C)
  *  Write protective MBR
+ *  Check how empty a partition physically is (number of empty blocks) (z)
 
 Installation
 ------------
