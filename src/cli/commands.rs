@@ -3,13 +3,13 @@ use crate::error::*;
 use crate::opt::Opt;
 use crate::table::Table;
 use crate::types::PartitionTypeGUID;
-use crate::uuid::{convert_str_to_array, generate_random_uuid, UUID};
+use crate::uuid::{convert_str_to_array, generate_random_uuid, Uuid};
 #[cfg(target_os = "linux")]
 use gptman::linux::reread_partition_table;
 use gptman::{GPTPartitionEntry, GPT};
 use std::fs;
 use std::io::{Read, Seek, SeekFrom};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 const BYTE_UNITS: &[&str] = &["kB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
 
@@ -57,10 +57,10 @@ where
             let disk_order = command == "P";
 
             if args.is_empty() {
-                print(&opt, &opt.device, gpt, len, disk_order)?;
+                print(opt, &opt.device, gpt, len, disk_order)?;
             } else {
                 for path in args {
-                    match open_and_print(&opt, &path.into(), disk_order) {
+                    match open_and_print(opt, path.as_ref(), disk_order) {
                         Ok(()) => {}
                         Err(err) => println!("could not open {:?}: {}", path, err),
                     }
@@ -71,7 +71,7 @@ where
         "d" => delete_partition(gpt, ask)?,
         "f" => fix_partitions_order(gpt),
         "w" => {
-            write(gpt, &opt)?;
+            write(gpt, opt)?;
             return Ok(true);
         }
         "t" => change_type(gpt, ask)?,
@@ -123,7 +123,7 @@ fn help() {
     println!();
 }
 
-fn open_and_print(opt: &Opt, path: &PathBuf, disk_order: bool) -> Result<()> {
+fn open_and_print(opt: &Opt, path: &Path, disk_order: bool) -> Result<()> {
     let mut f = fs::File::open(path)?;
     let len = f.seek(SeekFrom::End(0))?;
     let gpt = GPT::find_from(&mut f)?;
@@ -241,7 +241,7 @@ where
 }
 
 fn parse_lba(gpt: &GPT, value: &str, min: u64, max: u64) -> Result<u64> {
-    let n = u64::from_str_radix(value.trim_end_matches(char::is_alphabetic), 10)?;
+    let n = value.trim_end_matches(char::is_alphabetic).parse::<u64>()?;
     let unit = (*value)
         .to_uppercase()
         .as_str()
@@ -264,7 +264,7 @@ fn parse_lba(gpt: &GPT, value: &str, min: u64, max: u64) -> Result<u64> {
         "EB" => (n * 1000_u64.pow(6) - 1) / gpt.sector_size + 1,
         "ZB" => (n * 1000_u64.pow(7) - 1) / gpt.sector_size + 1,
         "YB" => (n * 1000_u64.pow(8) - 1) / gpt.sector_size + 1,
-        "" => u64::from_str_radix(value, 10)?,
+        "" => value.parse::<u64>()?,
         x => return Err(Error::new(&format!("Invalid unit: {}", x))),
     };
     let aligned_up = ((result - 1) / gpt.align + 1) * gpt.align;
@@ -378,7 +378,7 @@ where
     Ok(())
 }
 
-pub fn print(opt: &Opt, path: &PathBuf, gpt: &GPT, len: u64, disk_order: bool) -> Result<()> {
+pub fn print(opt: &Opt, path: &Path, gpt: &GPT, len: u64, disk_order: bool) -> Result<()> {
     use crate::opt::Column;
 
     let usable = gpt.header.last_usable_lba - gpt.header.first_usable_lba + 1;
@@ -565,47 +565,49 @@ where
         match ask("Partition type GUID (type L to list all types):")?.as_ref() {
             "" => {}
             "q" => break,
-            "L" => loop {
-                println!("Category:");
-                for (i, cat) in categories.iter().enumerate() {
-                    println!("{:2} => {}", i + 1, cat);
-                }
+            "L" => {
+                loop {
+                    println!("Category:");
+                    for (i, cat) in categories.iter().enumerate() {
+                        println!("{:2} => {}", i + 1, cat);
+                    }
 
-                match ask("Choose category (q to go back):")?.as_ref() {
-                    "" => {}
-                    "q" => break,
-                    i => loop {
-                        if let Some(types_map) = usize::from_str_radix(i, 10)
-                            .ok()
-                            .and_then(|x| categories.get(x - 1))
-                            .and_then(|x| TYPE_MAP.get(*x))
-                        {
-                            let mut types: Vec<_> = types_map.iter().collect();
-                            types.sort_by(|a, b| a.1.cmp(b.1));
-                            let types: Vec<(usize, &(&[u8; 16], &&str))> =
-                                types.iter().enumerate().collect();
+                    match ask("Choose category (q to go back):")?.as_ref() {
+                        "" => {}
+                        "q" => break,
+                        i => loop {
+                            if let Some(types_map) = i
+                                .parse::<usize>()
+                                .ok()
+                                .and_then(|x| categories.get(x - 1))
+                                .and_then(|x| TYPE_MAP.get(*x))
+                            {
+                                let mut types: Vec<_> = types_map.iter().collect();
+                                types.sort_by(|a, b| a.1.cmp(b.1));
+                                let types: Vec<(usize, &(&[u8; 16], &&str))> =
+                                    types.iter().enumerate().collect();
 
-                            println!("Partition types:");
-                            for (i, (guid, name)) in types.iter() {
-                                println!("{:2} => {}: {}", i + 1, guid.display_uuid(), name);
-                            }
+                                println!("Partition types:");
+                                for (i, (guid, name)) in types.iter() {
+                                    println!("{:2} => {}: {}", i + 1, guid.display_uuid(), name);
+                                }
 
-                            match ask("Choose partition type (q to go back):")?.as_ref() {
-                                "" => {}
-                                "q" => break,
-                                i => {
-                                    if let Some(arr) = usize::from_str_radix(i, 10)
-                                        .ok()
-                                        .and_then(|x| types.get(x - 1).map(|(_, (arr, _))| **arr))
-                                    {
-                                        return Ok(arr);
+                                match ask("Choose partition type (q to go back):")?.as_ref() {
+                                    "" => {}
+                                    "q" => break,
+                                    i => {
+                                        if let Some(arr) = i.parse::<usize>().ok().and_then(|x| {
+                                            types.get(x - 1).map(|(_, (arr, _))| **arr)
+                                        }) {
+                                            return Ok(arr);
+                                        }
                                     }
                                 }
                             }
-                        }
-                    },
+                        },
+                    }
                 }
-            },
+            }
             x => match convert_str_to_array(x) {
                 Ok(arr) => return Ok(arr),
                 Err(err) => {
@@ -772,13 +774,13 @@ where
     Ok(())
 }
 
-fn copy_partition<F>(dst_gpt: &mut GPT, dst_path: &PathBuf, ask: &F) -> Result<()>
+fn copy_partition<F>(dst_gpt: &mut GPT, dst_path: &Path, ask: &F) -> Result<()>
 where
     F: Fn(&str) -> Result<String>,
 {
     let src_path: PathBuf =
         match ask(&format!("From disk (default {}):", dst_path.display()))?.as_str() {
-            "" => dst_path.clone(),
+            "" => dst_path.to_path_buf(),
             x => x.into(),
         };
     let src_gpt = GPT::find_from(&mut fs::File::open(src_path)?)?;
@@ -804,7 +806,7 @@ where
     Ok(())
 }
 
-fn print_raw_data(gpt: &GPT, path: &PathBuf) -> Result<()> {
+fn print_raw_data(gpt: &GPT, path: &Path) -> Result<()> {
     let mut f = fs::File::open(path)?;
 
     print_table(&mut f, "First sector", 0, gpt.sector_size as u32)?;
@@ -872,13 +874,13 @@ where
     Ok(())
 }
 
-fn copy_all_partitions<F>(dst_gpt: &mut GPT, dst_path: &PathBuf, ask: &F) -> Result<()>
+fn copy_all_partitions<F>(dst_gpt: &mut GPT, dst_path: &Path, ask: &F) -> Result<()>
 where
     F: Fn(&str) -> Result<String>,
 {
     let src_path: PathBuf =
         match ask(&format!("From disk (default {}):", dst_path.display()))?.as_str() {
-            "" => dst_path.clone(),
+            "" => dst_path.to_path_buf(),
             x => x.into(),
         };
     let src_gpt = GPT::find_from(&mut fs::File::open(src_path)?)?;
