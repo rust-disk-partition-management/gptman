@@ -9,7 +9,7 @@ use gptman::linux::reread_partition_table;
 use gptman::{GPTPartitionEntry, GPT};
 use std::fs;
 use std::io::{Read, Seek, SeekFrom};
-use std::path::{PathBuf, Path};
+use std::path::{Path, PathBuf};
 
 const BYTE_UNITS: &[&str] = &["kB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
 
@@ -565,47 +565,49 @@ where
         match ask("Partition type GUID (type L to list all types):")?.as_ref() {
             "" => {}
             "q" => break,
-            "L" => loop {
-                println!("Category:");
-                for (i, cat) in categories.iter().enumerate() {
-                    println!("{:2} => {}", i + 1, cat);
-                }
+            "L" => {
+                loop {
+                    println!("Category:");
+                    for (i, cat) in categories.iter().enumerate() {
+                        println!("{:2} => {}", i + 1, cat);
+                    }
 
-                match ask("Choose category (q to go back):")?.as_ref() {
-                    "" => {}
-                    "q" => break,
-                    i => loop {
-                        if let Some(types_map) = i.parse::<usize>()
-                            .ok()
-                            .and_then(|x| categories.get(x - 1))
-                            .and_then(|x| TYPE_MAP.get(*x))
-                        {
-                            let mut types: Vec<_> = types_map.iter().collect();
-                            types.sort_by(|a, b| a.1.cmp(b.1));
-                            let types: Vec<(usize, &(&[u8; 16], &&str))> =
-                                types.iter().enumerate().collect();
+                    match ask("Choose category (q to go back):")?.as_ref() {
+                        "" => {}
+                        "q" => break,
+                        i => loop {
+                            if let Some(types_map) = i
+                                .parse::<usize>()
+                                .ok()
+                                .and_then(|x| categories.get(x - 1))
+                                .and_then(|x| TYPE_MAP.get(*x))
+                            {
+                                let mut types: Vec<_> = types_map.iter().collect();
+                                types.sort_by(|a, b| a.1.cmp(b.1));
+                                let types: Vec<(usize, &(&[u8; 16], &&str))> =
+                                    types.iter().enumerate().collect();
 
-                            println!("Partition types:");
-                            for (i, (guid, name)) in types.iter() {
-                                println!("{:2} => {}: {}", i + 1, guid.display_uuid(), name);
-                            }
+                                println!("Partition types:");
+                                for (i, (guid, name)) in types.iter() {
+                                    println!("{:2} => {}: {}", i + 1, guid.display_uuid(), name);
+                                }
 
-                            match ask("Choose partition type (q to go back):")?.as_ref() {
-                                "" => {}
-                                "q" => break,
-                                i => {
-                                    if let Some(arr) = i.parse::<usize>()
-                                        .ok()
-                                        .and_then(|x| types.get(x - 1).map(|(_, (arr, _))| **arr))
-                                    {
-                                        return Ok(arr);
+                                match ask("Choose partition type (q to go back):")?.as_ref() {
+                                    "" => {}
+                                    "q" => break,
+                                    i => {
+                                        if let Some(arr) = i.parse::<usize>().ok().and_then(|x| {
+                                            types.get(x - 1).map(|(_, (arr, _))| **arr)
+                                        }) {
+                                            return Ok(arr);
+                                        }
                                     }
                                 }
                             }
-                        }
-                    },
+                        },
+                    }
                 }
-            },
+            }
             x => match convert_str_to_array(x) {
                 Ok(arr) => return Ok(arr),
                 Err(err) => {
