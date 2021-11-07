@@ -1,4 +1,5 @@
 use crate::attribute_bits::AttributeBits;
+use crate::display_bytes::DisplayBytes;
 use crate::error::*;
 use crate::opt::Opt;
 use crate::table::Table;
@@ -14,75 +15,6 @@ use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
 const REFRESH_INTERVAL: std::time::Duration = std::time::Duration::from_secs(1);
-const BYTE_UNITS: &[&str] = &["kB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
-
-struct DisplayBytes {
-    unit: Option<&'static str>,
-    value: f64,
-    padded: bool,
-}
-
-impl std::fmt::Display for DisplayBytes {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        if let Some(unit) = self.unit {
-            write!(f, "{:.2} {}", self.value, unit)
-        } else if self.padded {
-            write!(f, "{:.0} B ", self.value)
-        } else {
-            write!(f, "{:.0} B", self.value)
-        }
-    }
-}
-
-impl DisplayBytes {
-    fn new(value: u64) -> Self {
-        let value = value as f64;
-
-        if let Some((value, unit)) = BYTE_UNITS
-            .iter()
-            .enumerate()
-            .map(|(i, u)| (value / 1000_f64.powf(i as f64 + 1.0), u))
-            .take_while(|(i, _)| *i > 1.0)
-            .last()
-        {
-            Self {
-                unit: Some(unit),
-                value,
-                padded: false,
-            }
-        } else {
-            Self {
-                unit: None,
-                value,
-                padded: false,
-            }
-        }
-    }
-
-    fn new_padded(value: u64) -> Self {
-        let value = value as f64;
-
-        if let Some((value, unit)) = BYTE_UNITS
-            .iter()
-            .enumerate()
-            .map(|(i, u)| (value / 1000_f64.powf(i as f64 + 1.0), u))
-            .take_while(|(i, _)| *i > 1.0)
-            .last()
-        {
-            Self {
-                unit: Some(unit),
-                value,
-                padded: true,
-            }
-        } else {
-            Self {
-                unit: None,
-                value,
-                padded: true,
-            }
-        }
-    }
-}
 
 macro_rules! ask_with_default {
     ($ask:expr, $parser:expr, $prompt:expr, $default:expr) => {
