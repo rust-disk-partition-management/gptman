@@ -8,76 +8,56 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build-linux:
+  test-and-lint:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout source
         uses: actions/checkout@v2
-      - name: Install musl
-        uses: actions-rs/toolchain@v1
-        with:
-          target: x86_64-unknown-linux-musl
-      - name: Build release (Linux)
+
+      - uses: Swatinem/rust-cache@v1
+
+      - name: cargo test
         uses: actions-rs/cargo@v1
         with:
-          command: build
-          args: --release --target x86_64-unknown-linux-musl
-      - run: strip target/x86_64-unknown-linux-musl/release/gptman
-      - uses: actions/upload-artifact@v2
-        with:
-          name: binary-linux
-          path: target/x86_64-unknown-linux-musl/release/gptman
+          command: test
+          args: --workspace
 
-#  test-and-lint:
-#    runs-on: ubuntu-latest
-#    steps:
-#      - name: Checkout source
-#        uses: actions/checkout@v2
-#
-#      - uses: Swatinem/rust-cache@v1
-#
-#      - name: cargo test
-#        uses: actions-rs/cargo@v1
-#        with:
-#          command: test
-#          args: --workspace
-#
-#      - name: rustfmt
-#        uses: actions-rs/cargo@v1
-#        with:
-#          command: fmt
-#          args: --all -- --check
-#
-#      - name: clippy
-#        uses: actions-rs/clippy-check@v1
-#        with:
-#          token: ${{ secrets.GITHUB_TOKEN }}
-#          args: --all --tests -- -D warnings
-#
-#  test-windows:
-#    runs-on: windows-latest
-#    steps:
-#      - name: Checkout source
-#        uses: actions/checkout@v2
-#
-#      - uses: Swatinem/rust-cache@v1
-#
-#      - name: cargo test
-#        uses: actions-rs/cargo@v1
-#        with:
-#          command: test
-#          args: --workspace
-#
-#  test-macos:
-#    runs-on: macos-latest
-#    steps:
-#      - name: Checkout source
-#        uses: actions/checkout@v2
-#
-#      - uses: Swatinem/rust-cache@v1
-#
-#      - name: cargo test
-#        uses: actions-rs/cargo@v1
-#        with:
-#          command: test
-#          args: --workspace
+      - name: rustfmt
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all -- --check
+
+      - name: clippy
+        uses: actions-rs/clippy-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          args: --all --tests -- -D warnings
+
+  test-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v2
+
+      - uses: Swatinem/rust-cache@v1
+
+      - name: cargo test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --workspace
+
+  test-macos:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v2
+
+      - uses: Swatinem/rust-cache@v1
+
+      - name: cargo test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --workspace
