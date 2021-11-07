@@ -131,7 +131,9 @@ pub enum Error {
     #[error("conflict of partition GUIDs")]
     ConflictPartitionGUID,
     /// An error that occurs when a partition has an invalid boundary.
+    ///
     /// The end sector must be greater or equal to the start sector of the partition.
+    ///
     /// Partitions must fit within the disk and must not overlap.
     #[error(
         "invalid partition boundaries: partitions must have positive size, must not overlap, \
@@ -139,6 +141,7 @@ pub enum Error {
     )]
     InvalidPartitionBoundaries,
     /// An error that occurs when the user provide an invalid partition number.
+    ///
     /// The partition number must be between 1 and `number_of_partition_entries` (usually 128)
     /// included.
     #[error("invalid partition number: {0}")]
@@ -873,8 +876,10 @@ impl GPT {
     }
 
     /// Find free spots in the partition table.
+    ///
     /// This function will return a vector of tuple with on the left: the starting LBA of the free
     /// spot; and on the right: the size (in sectors) of the free spot.
+    ///
     /// This function will automatically align with the alignment defined in the `GPT`.
     ///
     /// # Examples
@@ -964,6 +969,7 @@ impl GPT {
 
     /// Find the last place (most on the right) where you could start a new partition of the size
     /// given in parameter.
+    ///
     /// This function will automatically align with the alignment defined in the `GPT`.
     ///
     /// # Examples
