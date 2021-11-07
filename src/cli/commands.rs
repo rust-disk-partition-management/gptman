@@ -3,7 +3,7 @@ use crate::error::*;
 use crate::opt::Opt;
 use crate::table::Table;
 use crate::types::PartitionTypeGUID;
-use crate::uuid::{convert_str_to_array, generate_random_uuid, UUID};
+use crate::uuid::{convert_str_to_array, generate_random_uuid, Uuid};
 #[cfg(target_os = "linux")]
 use gptman::linux::reread_partition_table;
 use gptman::{GPTPartitionEntry, GPT};
@@ -57,10 +57,10 @@ where
             let disk_order = command == "P";
 
             if args.is_empty() {
-                print(&opt, &opt.device, gpt, len, disk_order)?;
+                print(opt, &opt.device, gpt, len, disk_order)?;
             } else {
                 for path in args {
-                    match open_and_print(&opt, &path.as_ref(), disk_order) {
+                    match open_and_print(opt, path.as_ref(), disk_order) {
                         Ok(()) => {}
                         Err(err) => println!("could not open {:?}: {}", path, err),
                     }
@@ -71,7 +71,7 @@ where
         "d" => delete_partition(gpt, ask)?,
         "f" => fix_partitions_order(gpt),
         "w" => {
-            write(gpt, &opt)?;
+            write(gpt, opt)?;
             return Ok(true);
         }
         "t" => change_type(gpt, ask)?,
