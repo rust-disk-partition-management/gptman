@@ -1,3 +1,5 @@
+#![allow(clippy::from_str_radix_10)]
+
 mod attribute_bits;
 mod commands;
 mod error;
