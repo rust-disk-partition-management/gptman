@@ -71,7 +71,7 @@
 #![deny(missing_docs)]
 
 use bincode::{deserialize_from, serialize, serialize_into};
-use crc::{crc32, Hasher32};
+use crc::{Crc, CRC_32_ISO_HDLC};
 use serde::de::{SeqAccess, Visitor};
 use serde::ser::SerializeTuple;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -281,7 +281,7 @@ impl GPTHeader {
         let data = serialize(&clone).expect("could not serialize");
         assert_eq!(data.len() as u32, clone.header_size);
 
-        crc32::checksum_ieee(&data)
+        Crc::<u32>::new(&CRC_32_ISO_HDLC).checksum(&data)
     }
 
     /// Update the CRC32 checksum of this header.
@@ -293,11 +293,12 @@ impl GPTHeader {
     pub fn generate_partition_entry_array_crc32(&self, partitions: &[GPTPartitionEntry]) -> u32 {
         let mut clone = self.clone();
         clone.partition_entry_array_crc32 = 0;
-        let mut digest = crc32::Digest::new(crc32::IEEE);
+        let crc = Crc::<u32>::new(&CRC_32_ISO_HDLC);
+        let mut digest = crc.digest();
         let mut wrote = 0;
         for x in partitions {
             let data = serialize(&x).expect("could not serialize");
-            digest.write(&data);
+            digest.update(&data);
             wrote += data.len();
         }
         assert_eq!(
@@ -305,7 +306,7 @@ impl GPTHeader {
             clone.size_of_partition_entry * clone.number_of_partition_entries
         );
 
-        digest.sum32()
+        digest.finalize()
     }
 
     /// Update the CRC32 checksum of the partition entry array.
