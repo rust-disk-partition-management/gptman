@@ -1033,18 +1033,20 @@ where
         if t1.elapsed() >= REFRESH_INTERVAL {
             display_progress!(zeroes, count);
             t1 = std::time::Instant::now();
-        }
 
-        match terminal_lock.wait_for_input(Some(std::time::Duration::ZERO)) {
-            Err(err) => {
-                res = Err(err.into());
-                false
+            match terminal_lock.wait_for_input(Some(std::time::Duration::ZERO)) {
+                Err(err) => {
+                    res = Err(err.into());
+                    false
+                }
+                Ok(true) => {
+                    res = Err("Interrupted!".into());
+                    false
+                }
+                Ok(false) => true,
             }
-            Ok(true) => {
-                res = Err("Interrupted!".into());
-                false
-            }
-            Ok(false) => true,
+        } else {
+            true
         }
     })?;
 
