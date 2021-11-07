@@ -1,4 +1,4 @@
-use crate::uuid::{convert_str_to_array, UUID};
+use crate::uuid::{convert_str_to_array, Uuid};
 use lazy_static::lazy_static;
 use std::collections::HashMap;
 

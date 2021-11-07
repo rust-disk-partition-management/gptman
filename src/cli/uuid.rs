@@ -19,11 +19,11 @@ impl fmt::Display for Error {
     }
 }
 
-pub trait UUID {
+pub trait Uuid {
     fn display_uuid(&self) -> String;
 }
 
-impl UUID for [u8; 16] {
+impl Uuid for [u8; 16] {
     fn display_uuid(&self) -> String {
         let mut digits: Vec<_> = self.iter().collect();
         let mut uuid: Vec<String> = Vec::new();
@@ -68,6 +68,7 @@ pub fn convert_str_to_array(uuid: &str) -> Result<[u8; 16], Error> {
     reordered.extend(digits.drain(..2).rev());
     reordered.extend(digits.drain(..2).rev());
     reordered.extend(digits.drain(..2));
+    #[allow(clippy::extend_with_drain)]
     reordered.extend(digits.drain(..));
 
     for (e, v) in arr.iter_mut().zip(reordered.iter()) {
