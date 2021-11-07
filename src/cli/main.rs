@@ -2,6 +2,7 @@
 
 mod attribute_bits;
 mod commands;
+mod display_bytes;
 mod error;
 mod opt;
 mod table;

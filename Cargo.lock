@@ -121,6 +121,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "245097e9a4535ee1e3e3931fcfcd55a796a44c643e8596ff6566d68f09b87bbc"
 
 [[package]]
+name = "count-zeroes"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c80f87e3dbcccd054a1a06b56548d113a6bce5c1f19b919d0a4dc95e8dd233ca"
+
+[[package]]
 name = "crc"
 version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -211,6 +217,7 @@ version = "0.8.1"
 dependencies = [
  "ansi_term 0.12.1",
  "bincode",
+ "count-zeroes",
  "crc",
  "lazy_static",
  "linefeed",

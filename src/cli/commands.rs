@@ -1,28 +1,20 @@
 use crate::attribute_bits::AttributeBits;
+use crate::display_bytes::DisplayBytes;
 use crate::error::*;
 use crate::opt::Opt;
 use crate::table::Table;
 use crate::types::PartitionTypeGUID;
 use crate::uuid::{convert_str_to_array, generate_random_uuid, Uuid};
+use count_zeroes::CountZeroes;
 #[cfg(target_os = "linux")]
 use gptman::linux::reread_partition_table;
 use gptman::{GPTPartitionEntry, GPT};
+use linefeed::{DefaultTerminal, Signal, Terminal};
 use std::fs;
-use std::io::{Read, Seek, SeekFrom};
+use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
-const BYTE_UNITS: &[&str] = &["kB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
-
-fn format_bytes(value: u64) -> String {
-    BYTE_UNITS
-        .iter()
-        .enumerate()
-        .map(|(i, u)| (value / 1000_u64.pow(i as u32 + 1), u))
-        .take_while(|(i, _)| *i > 10)
-        .map(|(i, u)| format!("{} {}", i, u))
-        .last()
-        .unwrap_or_else(|| format!("{} B ", value))
-}
+const REFRESH_INTERVAL: std::time::Duration = std::time::Duration::from_secs(1);
 
 macro_rules! ask_with_default {
     ($ask:expr, $parser:expr, $prompt:expr, $default:expr) => {
@@ -89,6 +81,7 @@ where
         "Z" => randomize(gpt),
         "s" => swap_partition_index(gpt, ask)?,
         "C" => copy_all_partitions(gpt, &opt.device, ask)?,
+        "z" => count_zeroes(gpt, &opt.device, ask)?,
         x => println!("{}: unknown command", x),
     }
 
@@ -116,11 +109,20 @@ fn help() {
     println!("  S   toggle the GUID specific bits");
     println!("  t   change a partition type");
     println!("  u   change partition UUID");
+    println!("  z   check how empty a partition physically is (number of empty blocks)");
     println!("  Z   randomize disk GUID and all partition's GUID");
     println!();
     println!("  q   exit without saving");
     println!("  w   write table to disk and exit");
     println!();
+}
+
+fn base_path(path: &Path) -> String {
+    let mut base_path = path.display().to_string();
+    if base_path.ends_with(char::is_numeric) {
+        base_path += "p";
+    }
+    base_path
 }
 
 fn open_and_print(opt: &Opt, path: &Path, disk_order: bool) -> Result<()> {
@@ -389,7 +391,7 @@ pub fn print(opt: &Opt, path: &Path, gpt: &GPT, len: u64, disk_order: bool) -> R
         gpt.align,
         gpt.align * gpt.sector_size
     );
-    println!("Disk size: {} ({} bytes)", format_bytes(len), len);
+    println!("Disk size: {} ({} bytes)", DisplayBytes::new(len), len);
     println!(
         "Usable sectors: {}-{} ({} sectors)",
         gpt.header.first_usable_lba, gpt.header.last_usable_lba, usable,
@@ -402,14 +404,14 @@ pub fn print(opt: &Opt, path: &Path, gpt: &GPT, len: u64, disk_order: bool) -> R
                 "{}-{} ({})",
                 i,
                 i + l - 1,
-                format_bytes(l * gpt.sector_size).trim()
+                DisplayBytes::new(l * gpt.sector_size),
             ))
             .collect::<Vec<_>>()
             .join(", "),
     );
     println!(
         "Usable space: {} ({} bytes)",
-        format_bytes(usable * gpt.sector_size),
+        DisplayBytes::new(usable * gpt.sector_size),
         usable * gpt.sector_size,
     );
     println!("Disk identifier: {}", gpt.header.disk_guid.display_uuid());
@@ -441,10 +443,7 @@ pub fn print(opt: &Opt, path: &Path, gpt: &GPT, len: u64, disk_order: bool) -> R
             Column::Name => table.add_cell("Name"),
         }
     }
-    let mut base_path = path.display().to_string();
-    if base_path.ends_with(char::is_numeric) {
-        base_path += "p";
-    }
+    let base_path = base_path(path);
 
     let mut partitions: Vec<_> = gpt.iter().filter(|(_, x)| x.is_used()).collect();
 
@@ -459,7 +458,9 @@ pub fn print(opt: &Opt, path: &Path, gpt: &GPT, len: u64, disk_order: bool) -> R
                 Column::Start => table.add_cell_rtl(&format!("{}", p.starting_lba)),
                 Column::End => table.add_cell_rtl(&format!("{}", p.ending_lba)),
                 Column::Sectors => table.add_cell_rtl(&format!("{}", p.size()?)),
-                Column::Size => table.add_cell_rtl(&format_bytes(p.size()? * gpt.sector_size)),
+                Column::Size => table.add_cell_rtl(
+                    &DisplayBytes::new_padded(p.size()? * gpt.sector_size).to_string(),
+                ),
                 Column::Type => {
                     table.add_cell(p.partition_type_guid.display_partition_type_guid().as_str())
                 }
@@ -899,7 +900,7 @@ where
             "Copy partition {} of {} sectors ({}):",
             src_i,
             size,
-            format_bytes(size_in_bytes)
+            DisplayBytes::new(size_in_bytes)
         );
         let dst_i = ask_free_slot(dst_gpt, ask)?;
         let starting_lba = ask_starting_lba(dst_gpt, ask, size)?;
@@ -921,4 +922,72 @@ where
     gpt.remove(i)?;
 
     Ok(())
+}
+
+fn count_zeroes<F>(gpt: &mut GPT, path: &Path, ask: &F) -> Result<()>
+where
+    F: Fn(&str) -> Result<String>,
+{
+    let i = ask_used_slot(gpt, ask)?;
+    let base_path = base_path(path);
+    let partition_path = format!("{}{}", base_path, i);
+
+    let mut f = fs::File::open(partition_path)?;
+    let len = f.seek(std::io::SeekFrom::End(0))?;
+    f.seek(std::io::SeekFrom::Start(0))?;
+    let stdout = std::io::stdout();
+    let mut stdout_lock = stdout.lock();
+    let mut t1 = std::time::Instant::now();
+    let t2 = std::time::Instant::now();
+    let progress_len = DisplayBytes::new(len);
+
+    macro_rules! display_progress {
+        ($zeroes:expr, $count:expr) => {{
+            let _ = write!(
+                stdout_lock,
+                "\u{001b}[2K\r{}/{} zeroes: {} ({:.2}%) speed: {}/s",
+                DisplayBytes::new($count),
+                progress_len,
+                DisplayBytes::new($zeroes),
+                $zeroes as f64 / $count as f64 * 100.0,
+                DisplayBytes::new($count.checked_div(t2.elapsed().as_secs()).unwrap_or(0)),
+            );
+            let _ = stdout_lock.flush();
+        }};
+    }
+
+    let mut res = Ok(());
+    let terminal = DefaultTerminal::new()?;
+    let mut terminal_lock = terminal.lock_read();
+    let prev_terminal_state = terminal_lock.prepare(true, Signal::Interrupt.into())?;
+
+    let (zeroes, count) = f.count_zeroes(|zeroes: u64, count: u64| {
+        if t1.elapsed() >= REFRESH_INTERVAL {
+            display_progress!(zeroes, count);
+            t1 = std::time::Instant::now();
+
+            match terminal_lock.wait_for_input(Some(std::time::Duration::ZERO)) {
+                Err(err) => {
+                    res = Err(err.into());
+                    false
+                }
+                Ok(true) => {
+                    res = Err("Interrupted!".into());
+                    false
+                }
+                Ok(false) => true,
+            }
+        } else {
+            true
+        }
+    })?;
+
+    display_progress!(zeroes, count);
+    let _ = writeln!(stdout_lock);
+
+    let mut sink = Vec::new();
+    let _ = terminal_lock.read(&mut sink);
+    terminal_lock.restore(prev_terminal_state)?;
+
+    res
 }
