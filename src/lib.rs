@@ -1533,6 +1533,7 @@ mod test {
     }
 
     #[test]
+    #[allow(clippy::manual_swap)]
     fn write_invalid_boundaries() {
         fn test(path: &str, ss: u64) {
             let mut cur = io::Cursor::new(fs::read(path).unwrap());
