@@ -1,6 +1,6 @@
 [package]
 name = "gptman"
-version = "0.8.2"
+version = "0.8.3"
 authors = ["Cecile Tonglet <cecile.tonglet@cecton.com>"]
 license = "MIT OR Apache-2.0"
 edition = "2018"
