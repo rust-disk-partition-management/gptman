@@ -1,6 +1,11 @@
 Changelog
 =========
 
+## v0.8.3
+
+- Remove count-zeroes from library's dependency (only used by CLI)
+- Fix licensing missing author and date
+
 ## v0.8.2
 
 - Change release build to provide MUSL build for Linux by default
