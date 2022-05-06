@@ -80,7 +80,7 @@ use std::collections::HashSet;
 use std::fmt;
 use std::io;
 use std::io::{Read, Seek, SeekFrom, Write};
-use std::ops::{Index, IndexMut};
+use std::ops::{Index, IndexMut, RangeInclusive};
 use thiserror::Error;
 
 /// Linux specific helpers
@@ -146,9 +146,15 @@ pub enum Error {
     /// included.
     #[error("invalid partition number: {0}")]
     InvalidPartitionNumber(u32),
+    /// An error that occurs when the user attempts to access information for an unused partition.
+    #[error("unused partition")]
+    UnusedPartition,
     /// An operation that required to find a partition, was unable to find that partition.
     #[error("partition not found")]
     PartitionNotFound,
+    /// An arithmetic operation overflowed.
+    #[error("an arithmetic operation overflowed")]
+    Overflow,
 }
 
 /// The result of reading, writing or managing a GPT.
@@ -574,6 +580,43 @@ impl GPTPartitionEntry {
         }
 
         Ok(self.ending_lba - self.starting_lba + 1)
+    }
+
+    /// Get the range of sectors covered by a partition.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the partition is unused or if
+    /// `ending_lba` is lesser than the `starting_lba`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let ss = 512;
+    /// let data = vec![0; 100 * ss as usize];
+    /// let mut cur = std::io::Cursor::new(data);
+    /// let mut gpt = gptman::GPT::new_from(&mut cur, ss as u64, [0xff; 16])
+    ///     .expect("could not create partition table");
+    /// gpt[1] = gptman::GPTPartitionEntry {
+    ///     partition_type_guid: [0xff; 16],
+    ///     unique_partition_guid: [0xff; 16],
+    ///     starting_lba: 2048,
+    ///     ending_lba: 4096,
+    ///     attribute_bits: 0,
+    ///     partition_name: "A Robot Named Fight!".into(),
+    /// };
+    ///
+    /// assert_eq!(gpt[1].range().unwrap(), 2048..=4096);
+    /// ```
+    pub fn range(&self) -> Result<RangeInclusive<u64>> {
+        if self.is_unused() {
+            return Err(Error::UnusedPartition);
+        }
+        if self.ending_lba < self.starting_lba {
+            return Err(Error::InvalidPartitionBoundaries);
+        }
+
+        Ok(self.starting_lba..=self.ending_lba)
     }
 }
 
@@ -1074,6 +1117,56 @@ impl GPT {
             .map(|(_, l)| l / self.align * self.align)
             .max()
             .ok_or(Error::NoSpaceLeft)
+    }
+
+    /// Get the range of bytes covered by a partition.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the partition number is invalid, or if
+    /// the partition is unused, or if the partition's `ending_lba` is less than its
+    /// `starting_lba`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let ss = 512;
+    /// let data = vec![0; 100 * ss as usize];
+    /// let mut cur = std::io::Cursor::new(data);
+    /// let mut gpt = gptman::GPT::new_from(&mut cur, ss as u64, [0xff; 16])
+    ///     .expect("could not create partition table");
+    /// gpt[1] = gptman::GPTPartitionEntry {
+    ///     partition_type_guid: [0xff; 16],
+    ///     unique_partition_guid: [0xff; 16],
+    ///     starting_lba: 2048,
+    ///     ending_lba: 2048,
+    ///     attribute_bits: 0,
+    ///     partition_name: "A Robot Named Fight!".into(),
+    /// };
+    ///
+    /// assert_eq!(gpt.get_partition_byte_range(1).unwrap(), 1048576..=1049087);
+    /// ```
+    pub fn get_partition_byte_range(&self, partition_number: u32) -> Result<RangeInclusive<u64>> {
+        if partition_number == 0 || partition_number > self.header.number_of_partition_entries {
+            return Err(Error::InvalidPartitionNumber(partition_number));
+        }
+        let partition = &self[partition_number];
+
+        let sector_range = partition.range()?;
+
+        let start_byte = sector_range
+            .start()
+            .checked_mul(self.sector_size)
+            .ok_or(Error::Overflow)?;
+        // Sector ranges are inclusive, so to get the position of the end byte we need
+        // to add the size of another sector, less one byte because the byte range
+        // returned from this function is also inclusive.
+        let end_byte = sector_range
+            .end()
+            .checked_mul(self.sector_size)
+            .and_then(|v| v.checked_add(self.sector_size - 1))
+            .ok_or(Error::Overflow)?;
+        Ok(start_byte..=end_byte)
     }
 
     /// Sort the partition entries in the array by the starting LBA.
