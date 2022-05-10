@@ -16,7 +16,7 @@ pub enum Column {
 }
 
 #[derive(Parser, Debug)]
-#[clap()]
+#[clap(version)]
 pub struct Opt {
     /// display partitions and exit
     #[clap(short = 'l', long = "list")]
