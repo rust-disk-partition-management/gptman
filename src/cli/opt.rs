@@ -48,3 +48,14 @@ pub struct Opt {
     #[clap(short = 'a', long = "align")]
     pub align: Option<u64>,
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn verify_app() {
+        use clap::CommandFactory;
+        Opt::command().debug_assert();
+    }
+}
