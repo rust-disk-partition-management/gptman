@@ -13,13 +13,13 @@ use self::commands::{execute, print};
 use self::error::*;
 use self::opt::*;
 use self::uuid::generate_random_uuid;
+use clap::StructOpt;
 #[cfg(target_os = "linux")]
 use gptman::linux::get_sector_size;
 use gptman::GPT;
 use linefeed::{Interface, ReadResult, Signal};
 use std::fs;
 use std::io::{Seek, SeekFrom};
-use structopt::StructOpt;
 
 macro_rules! main_unwrap {
     ($e:expr) => {{
