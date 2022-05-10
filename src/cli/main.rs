@@ -13,7 +13,7 @@ use self::commands::{execute, print};
 use self::error::*;
 use self::opt::*;
 use self::uuid::generate_random_uuid;
-use clap::StructOpt;
+use clap::Parser;
 #[cfg(target_os = "linux")]
 use gptman::linux::get_sector_size;
 use gptman::GPT;
@@ -34,7 +34,7 @@ macro_rules! main_unwrap {
 }
 
 fn main() {
-    let opt = Opt::from_args();
+    let opt = Opt::parse();
 
     if opt.print {
         let (mut gpt, len) = main_unwrap!(open_disk(&opt));
