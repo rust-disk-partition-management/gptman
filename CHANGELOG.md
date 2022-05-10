@@ -1,6 +1,10 @@
 Changelog
 =========
 
+## v0.8.4
+
+- Add GPTPartitionEntry::range and GPT::get_partition_byte_range (#76)
+
 ## v0.8.3
 
 - Remove count-zeroes from library's dependency (only used by CLI)
