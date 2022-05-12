@@ -5,16 +5,42 @@ on:
     branches: [ main ]
   schedule:
     - cron: 0 0 1 * *
+  pull_request:
+    branches: [ main ]
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  test-linux:
-    runs-on: ubuntu-latest
+  test:
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+          - macos-latest
+        rust:
+          - stable
+          - 1.46.0 # lib MSRV
+          - 1.54.0 # cli MSRV
+        include:
+          - os: ubuntu-latest
+            rust: stable
+            lint: 1
+          - rust: stable
+            rust-args: --all-features
+          - rust: 1.54.0
+            rust-args: --all-features
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout source
         uses: actions/checkout@v2
+
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ matrix.rust }}
+          default: true
+          override: true
 
       - uses: Swatinem/rust-cache@v1
 
@@ -22,32 +48,18 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --workspace --all-features
+          args: --workspace ${{ matrix.rust-args }}
 
-  test-windows:
-    runs-on: windows-latest
-    steps:
-      - name: Checkout source
-        uses: actions/checkout@v2
-
-      - uses: Swatinem/rust-cache@v1
-
-      - name: cargo test
+      - name: rustfmt
+        if: github.event_name == 'pull_request' && matrix.lint
         uses: actions-rs/cargo@v1
         with:
-          command: test
-          args: --workspace --all-features
+          command: fmt
+          args: --all -- --check
 
-  test-macos:
-    runs-on: macos-latest
-    steps:
-      - name: Checkout source
-        uses: actions/checkout@v2
-
-      - uses: Swatinem/rust-cache@v1
-
-      - name: cargo test
-        uses: actions-rs/cargo@v1
+      - name: clippy
+        if: github.event_name == 'pull_request' && matrix.lint
+        uses: actions-rs/clippy-check@v1
         with:
-          command: test
-          args: --workspace --all-features
+          token: ${{ secrets.GITHUB_TOKEN }}
+          args: --all --tests --all-features -- -D warnings
