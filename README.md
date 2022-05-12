@@ -8,10 +8,10 @@
 gptman
 ======
 
+A library that allows managing GUID partition tables.
+
 A CLI tool for Linux that allows you to copy a partition from one disk to
 another and more.
-
-A library that allows managing GUID partition tables.
 
 Features
 --------
@@ -51,13 +51,13 @@ Installation
  *  CLI:
 
     ```
-    cargo install gptman
+    cargo install --features=cli gptman
     ```
 
     Statically linked:
 
     ```
-    cargo install --target=x86_64-unknown-linux-musl gptman
+    cargo install --features=cli --target=x86_64-unknown-linux-musl gptman
     ```
 
  *  Library:
@@ -65,7 +65,7 @@ Installation
     Cargo.toml:
     ```toml
     [dependencies]
-    gptman = { version = "0.2.0", default-features = false }
+    gptman = "0.8.0"
     ```
 
 Library Usage
