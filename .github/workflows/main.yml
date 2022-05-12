@@ -19,13 +19,28 @@ jobs:
           - ubuntu-latest
           - windows-latest
           - macos-latest
+        rust:
+          - stable
+          - 1.46.0 # lib MSRV
+          - 1.54.0 # cli MSRV
         include:
           - os: ubuntu-latest
+            rust: stable
             lint: 1
+          - rust: stable
+            rust-args: --all-features
+          - rust: 1.54.0
+            rust-args: --all-features
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout source
         uses: actions/checkout@v2
+
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ matrix.rust }}
+          default: true
+          override: true
 
       - uses: Swatinem/rust-cache@v1
 
@@ -33,7 +48,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --workspace --all-features
+          args: --workspace ${{ matrix.rust-args }}
 
       - name: rustfmt
         if: github.event_name == 'pull_request' && matrix.lint
