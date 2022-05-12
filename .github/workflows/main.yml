@@ -12,8 +12,17 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  test-linux:
-    runs-on: ubuntu-latest
+  test:
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+          - macos-latest
+        include:
+          - os: ubuntu-latest
+            lint: 1
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout source
         uses: actions/checkout@v2
@@ -27,43 +36,15 @@ jobs:
           args: --workspace --all-features
 
       - name: rustfmt
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && matrix.lint
         uses: actions-rs/cargo@v1
         with:
           command: fmt
           args: --all -- --check
 
       - name: clippy
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && matrix.lint
         uses: actions-rs/clippy-check@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --all --tests -- -D warnings
-
-  test-windows:
-    runs-on: windows-latest
-    steps:
-      - name: Checkout source
-        uses: actions/checkout@v2
-
-      - uses: Swatinem/rust-cache@v1
-
-      - name: cargo test
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --workspace --all-features
-
-  test-macos:
-    runs-on: macos-latest
-    steps:
-      - name: Checkout source
-        uses: actions/checkout@v2
-
-      - uses: Swatinem/rust-cache@v1
-
-      - name: cargo test
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --workspace --all-features
