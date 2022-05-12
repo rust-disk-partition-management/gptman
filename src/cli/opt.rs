@@ -2,7 +2,6 @@ use clap::{ArgEnum, Parser};
 use std::path::PathBuf;
 
 #[derive(ArgEnum, Clone, Debug)]
-#[clap(rename_all = "verbatim")]
 pub enum Column {
     Device,
     Start,
@@ -27,7 +26,7 @@ pub struct Opt {
         short = 'o',
         long = "output",
         arg_enum,
-        default_value = "Device,Start,End,Sectors,Size,Type,GUID,Attributes,Name",
+        default_value = "device,start,end,sectors,size,type,guid,attributes,name",
         use_value_delimiter = true
     )]
     pub columns: Vec<Column>,
