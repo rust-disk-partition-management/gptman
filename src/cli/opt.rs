@@ -9,7 +9,7 @@ pub enum Column {
     Sectors,
     Size,
     Type,
-    GUID,
+    Guid,
     Attributes,
     Name,
 }
