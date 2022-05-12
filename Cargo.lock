@@ -122,9 +122,9 @@ checksum = "245097e9a4535ee1e3e3931fcfcd55a796a44c643e8596ff6566d68f09b87bbc"
 
 [[package]]
 name = "count-zeroes"
-version = "0.2.0"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c80f87e3dbcccd054a1a06b56548d113a6bce5c1f19b919d0a4dc95e8dd233ca"
+checksum = "a233b11d956f785d539dd960035744d041d75c272d7c6e95285bbcc8b4a7c172"
 
 [[package]]
 name = "crc"
