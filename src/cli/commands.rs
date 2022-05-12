@@ -438,7 +438,7 @@ pub fn print(opt: &Opt, path: &Path, gpt: &GPT, len: u64, disk_order: bool) -> R
             Column::Sectors => table.add_cell_rtl("Sectors"),
             Column::Size => table.add_cell_rtl("Size"),
             Column::Type => table.add_cell("Type"),
-            Column::GUID => table.add_cell("GUID"),
+            Column::Guid => table.add_cell("GUID"),
             Column::Attributes => table.add_cell("Attributes"),
             Column::Name => table.add_cell("Name"),
         }
@@ -464,7 +464,7 @@ pub fn print(opt: &Opt, path: &Path, gpt: &GPT, len: u64, disk_order: bool) -> R
                 Column::Type => {
                     table.add_cell(p.partition_type_guid.display_partition_type_guid().as_str())
                 }
-                Column::GUID => table.add_cell(p.unique_partition_guid.display_uuid().as_str()),
+                Column::Guid => table.add_cell(p.unique_partition_guid.display_uuid().as_str()),
                 Column::Attributes => table.add_cell(
                     p.attribute_bits
                         .display_attribute_bits(p.partition_type_guid)

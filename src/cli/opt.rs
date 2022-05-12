@@ -1,51 +1,60 @@
+use clap::{ArgEnum, Parser};
 use std::path::PathBuf;
-use structopt::clap::arg_enum;
-use structopt::StructOpt;
 
-arg_enum! {
-    #[derive(Debug)]
-    pub enum Column {
-        Device,
-        Start,
-        End,
-        Sectors,
-        Size,
-        Type,
-        GUID,
-        Attributes,
-        Name,
-    }
+#[derive(ArgEnum, Clone, Debug)]
+pub enum Column {
+    Device,
+    Start,
+    End,
+    Sectors,
+    Size,
+    Type,
+    Guid,
+    Attributes,
+    Name,
 }
 
-#[derive(StructOpt, Debug)]
-#[structopt()]
+#[derive(Parser, Debug)]
+#[clap(version)]
 pub struct Opt {
     /// display partitions and exit
-    #[structopt(short = "l", long = "list")]
+    #[clap(short = 'l', long = "list")]
     pub print: bool,
 
     /// output columns
-    #[structopt(
-        short = "o",
+    #[clap(
+        short = 'o',
         long = "output",
-        default_value = "Device,Start,End,Sectors,Size,Type,GUID,Attributes,Name",
-        use_delimiter = true, possible_values = &Column::variants()
+        arg_enum,
+        default_value = "device,start,end,sectors,size,type,guid,attributes,name",
+        use_value_delimiter = true
     )]
     pub columns: Vec<Column>,
 
     /// device to open
-    #[structopt(name = "DEVICE", parse(from_os_str))]
+    #[clap(name = "DEVICE", parse(from_os_str))]
     pub device: PathBuf,
 
     /// initialize a new GPT on the disk
-    #[structopt(short = "i", long = "init")]
+    #[clap(short = 'i', long = "init")]
     pub init: bool,
 
     /// sector size
-    #[structopt(short = "b", long = "sector-size")]
+    #[clap(short = 'b', long = "sector-size")]
     pub sector_size: Option<u64>,
 
     /// partition alignment
-    #[structopt(short = "a", long = "align")]
+    #[clap(short = 'a', long = "align")]
     pub align: Option<u64>,
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn verify_app() {
+        use clap::CommandFactory;
+        Opt::command().debug_assert();
+    }
 }
