@@ -37,7 +37,6 @@ structopt = { version = "0.3", optional = true }
 count-zeroes = { version = "0.2.0", optional = true }
 
 [features]
-default = [ "cli" ]
 cli = [ "lazy_static", "ansi_term", "pad", "unicode-width", "linefeed", "rand", "structopt", "count-zeroes" ]
 
 [target.'cfg(target_os = "linux")'.dependencies]
