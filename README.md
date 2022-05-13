@@ -1,4 +1,4 @@
-![Rust](https://github.com/rust-disk-partition-management/gptman/workflows/Rust/badge.svg)
+![Rust](https://github.com/rust-disk-partition-management/gptman/actions/workflows/rust.yml/badge.svg)
 [![Latest Version](https://img.shields.io/crates/v/gptman.svg)](https://crates.io/crates/gptman)
 ![Rust 1.46+](https://img.shields.io/badge/rust-1.46%2B-orange.svg)
 ![License](https://img.shields.io/crates/l/gptman)
