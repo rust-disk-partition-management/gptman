@@ -1,10 +1,10 @@
-![Rust](https://github.com/cecton/gptman/workflows/Rust/badge.svg)
+![Rust](https://github.com/rust-disk-partition-management/gptman/actions/workflows/rust.yml/badge.svg)
 [![Latest Version](https://img.shields.io/crates/v/gptman.svg)](https://crates.io/crates/gptman)
 ![Rust 1.46+](https://img.shields.io/badge/rust-1.46%2B-orange.svg)
 ![License](https://img.shields.io/crates/l/gptman)
 [![Docs.rs](https://docs.rs/gptman/badge.svg)](https://docs.rs/gptman)
-[![LOC](https://tokei.rs/b1/github/cecton/gptman)](https://github.com/cecton/gptman)
-[![Dependency Status](https://deps.rs/repo/github/cecton/gptman/status.svg)](https://deps.rs/repo/github/cecton/gptman)
+[![LOC](https://tokei.rs/b1/github/rust-disk-partition-management/gptman)](https://github.com/rust-disk-partition-management/gptman)
+[![Dependency Status](https://deps.rs/repo/github/rust-disk-partition-management/gptman/status.svg)](https://deps.rs/repo/github/rust-disk-partition-management/gptman)
 
 gptman
 ======
