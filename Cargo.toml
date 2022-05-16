@@ -40,4 +40,4 @@ count-zeroes = { version = "0.2.0", optional = true }
 cli = [ "lazy_static", "ansi_term", "pad", "unicode-width", "linefeed", "rand", "clap", "count-zeroes" ]
 
 [target.'cfg(target_os = "linux")'.dependencies]
-nix = "0.22"
+nix = ">= 0.22, < 0.25"
