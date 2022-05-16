@@ -1,0 +1,38 @@
+name: Update deps
+
+on:
+  schedule:
+    - cron: 0 0 1 * *
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  update:
+    name: Update
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v2
+
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          default: true
+          override: true
+
+      - uses: Swatinem/rust-cache@v1
+
+      - name: cargo update
+        uses: actions-rs/cargo@v1
+        with:
+          command: update
+
+      - name: Open pull request
+        uses: peter-evans/create-pull-request@v4.0.3
+        with:
+          branch: cargo-update
+          title: "cargo update"
+          commit-message: "cargo: update"
+          body: "Update dependencies to latest."
