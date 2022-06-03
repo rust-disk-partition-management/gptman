@@ -8,6 +8,10 @@ on:
 env:
   CARGO_TERM_COLOR: always
 
+permissions:
+  contents: write
+  pull-request: write
+
 jobs:
   update:
     name: Update
