@@ -92,6 +92,7 @@ const MAX_ALIGN: u64 = 16384;
 
 /// An error that can be produced while reading, writing or managing a GPT.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum Error {
     /// Derialization errors.
     #[error("deserialization failed")]
