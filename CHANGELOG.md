@@ -3,10 +3,14 @@ Changelog
 
 ## v1.0.0
 
-- [BREAKING] Make Error type non_exhaustive so the API can be stabilized better (#94)
-- Remove useless allocation (#93)
+- [BREAKING] Disable `cli` feature by default (#81)
+- [BREAKING] Make `Error` type `non_exhaustive` so the API can be stabilized better (#94)
+- [BREAKING CLI]: Have `--output` take lowercase field names as arguments (#77)
 - [CLI] Replace structopt with clap 3.1 (#77)
-- [BREAKING] cargo: Disable CLI by default (#81)
+- Define library MSRV of 1.46 and CLI MSRV of 1.54 (#79)
+- Remove useless allocation (#93)
+- Update repository URL (#82)
+- Update dependencies
 
 ## v0.8.4
 
