@@ -235,7 +235,7 @@ impl GPTHeader {
     {
         let gpt: GPTHeader = deserialize_from(&mut reader)?;
 
-        if String::from_utf8_lossy(&gpt.signature) != "EFI PART" {
+        if &gpt.signature != b"EFI PART" {
             return Err(Error::InvalidSignature);
         }
 
