@@ -3,20 +3,10 @@ Changelog
 
 ## v1.0.0
 
-- workflows: Fix invalid permission declaration in update workflow (#95)
 - [BREAKING] Make Error type non_exhaustive so the API can be stabilized better (#94)
 - Remove useless allocation (#93)
-- workflows: Fix permissions of `cargo update` workflow (#92)
-- cargo: Widen nix dependency range (#91)
-- Add monthly workflow to update dependencies (#89)
-- Update dependencies (#88)
-- Bump thiserror from 1.0.30 to 1.0.31 (#85)
-- Bump rand from 0.8.4 to 0.8.5 (#84)
-- Small infrastructure improvements (#82)
 - [CLI] Replace structopt with clap 3.1 (#77)
-- Consolidate workflow jobs; test library with 1.46 MSRV and CLI with 1.54 (#79)
 - [BREAKING] cargo: Disable CLI by default (#81)
-- cargo: Update crc to 3.0.0 (#80)
 
 ## v0.8.4
 
