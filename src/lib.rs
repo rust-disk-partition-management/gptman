@@ -1200,7 +1200,7 @@ impl GPT {
         Ok(())
     }
 
-    /// Remove a partiton entry in the array that resides at a given sector.
+    /// Remove a partition entry in the array that resides at a given sector.
     ///
     /// # Errors
     ///
