@@ -22,14 +22,14 @@ jobs:
         rust:
           - stable
           - 1.46.0 # lib MSRV
-          - 1.54.0 # cli MSRV
+          - 1.56.1 # cli MSRV
         include:
           - os: ubuntu-latest
             rust: stable
             lint: 1
           - rust: stable
             rust-args: --all-features
-          - rust: 1.54.0
+          - rust: 1.56.1
             rust-args: --all-features
     runs-on: ${{ matrix.os }}
     steps:
