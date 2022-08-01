@@ -22,7 +22,7 @@ jobs:
         rust:
           - stable
           - 1.46.0 # lib MSRV
-          - 1.56.1 # cli MSRV
+          - 1.57.0 # cli MSRV
         include:
           - os: ubuntu-latest
             rust: stable
