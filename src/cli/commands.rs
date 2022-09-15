@@ -985,8 +985,12 @@ where
     display_progress!(zeroes, count);
     let _ = writeln!(stdout_lock);
 
-    let mut sink = Vec::new();
-    let _ = terminal_lock.read(&mut sink);
+    #[allow(clippy::read_zero_byte_vec)]
+    {
+        let mut sink = Vec::new();
+        // resizes sink
+        let _ = terminal_lock.read(&mut sink);
+    }
     terminal_lock.restore(prev_terminal_state)?;
 
     res
