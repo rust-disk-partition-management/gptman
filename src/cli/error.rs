@@ -3,7 +3,7 @@ use std::error::Error as ErrorTrait;
 use std::fmt;
 use std::io;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Error(String);
 
 impl Error {
