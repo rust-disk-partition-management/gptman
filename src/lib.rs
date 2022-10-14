@@ -1852,3 +1852,16 @@ mod test {
         test(DISK2, 4096);
     }
 }
+
+#[cfg(doctest)]
+mod test_readme {
+    // for Rust < 1.54
+    // https://blog.guillaume-gomez.fr/articles/2021-08-03+Improvements+for+%23%5Bdoc%5D+attributes+in+Rust
+    macro_rules! check_doc {
+        ($x:expr) => {
+            #[doc = $x]
+            extern "C" {}
+        };
+    }
+    check_doc!(include_str!("../README.md"));
+}

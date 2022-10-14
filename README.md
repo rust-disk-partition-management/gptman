@@ -45,19 +45,19 @@ Installation
 
  *  With `curl`:
 
-    ```
+    ```console
     curl -sSL http://gptman.cecton.com | sh -
     ```
 
  *  CLI:
 
-    ```
+    ```console
     cargo install --features=cli gptman
     ```
 
     Statically linked:
 
-    ```
+    ```console
     cargo install --features=cli --target=x86_64-unknown-linux-musl gptman
     ```
 
