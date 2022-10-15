@@ -33,7 +33,11 @@ pad = { version = "0.1", optional = true }
 unicode-width = { version = "0.1.8", optional = true }
 linefeed = { version = "0.6.0", optional = true }
 rand = { version = "0.8", optional = true }
-clap = { version = "3.1", optional = true, features = ["derive"] }
+# We don't actually support clap 3.  But cargo < 1.60 ignores clap versions
+# >= 4, and our MSRV is lower than that when the CLI is disabled.  Ensure
+# older cargo can find _some_ clap version so it won't fail.
+# https://users.rust-lang.org/t/optional-dependencies-and-msrv/82151
+clap = { version = ">= 3, < 5", optional = true, features = ["derive", "wrap_help"] }
 count-zeroes = { version = "0.2.0", optional = true }
 
 [features]

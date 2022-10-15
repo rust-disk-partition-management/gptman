@@ -1,7 +1,7 @@
-use clap::{ArgEnum, Parser};
+use clap::{Parser, ValueEnum};
 use std::path::PathBuf;
 
-#[derive(ArgEnum, Clone, Debug)]
+#[derive(Clone, Debug, ValueEnum)]
 pub enum Column {
     Device,
     Start,
@@ -15,36 +15,36 @@ pub enum Column {
 }
 
 #[derive(Parser, Debug)]
-#[clap(version)]
+#[command(next_display_order = None, version)]
 pub struct Opt {
     /// display partitions and exit
-    #[clap(short = 'l', long = "list")]
+    #[arg(short = 'l', long = "list")]
     pub print: bool,
 
     /// output columns
-    #[clap(
+    #[arg(
         short = 'o',
         long = "output",
-        arg_enum,
+        value_enum,
         default_value = "device,start,end,sectors,size,type,guid,attributes,name",
-        use_value_delimiter = true
+        value_delimiter = ','
     )]
     pub columns: Vec<Column>,
 
     /// device to open
-    #[clap(name = "DEVICE", parse(from_os_str))]
+    #[arg(value_name = "DEVICE")]
     pub device: PathBuf,
 
     /// initialize a new GPT on the disk
-    #[clap(short = 'i', long = "init")]
+    #[arg(short = 'i', long = "init")]
     pub init: bool,
 
     /// sector size
-    #[clap(short = 'b', long = "sector-size")]
+    #[arg(short = 'b', long = "sector-size")]
     pub sector_size: Option<u64>,
 
     /// partition alignment
-    #[clap(short = 'a', long = "align")]
+    #[arg(short = 'a', long = "align")]
     pub align: Option<u64>,
 }
 
