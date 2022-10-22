@@ -22,14 +22,16 @@ jobs:
         rust:
           - stable
           - 1.46.0 # lib MSRV
-          - 1.57.0 # cli MSRV
+          - 1.60.0 # cli MSRV
         include:
           - os: ubuntu-latest
             rust: stable
             lint: 1
           - rust: stable
             rust-args: --all-features
-          - rust: 1.57.0
+          - rust: 1.46.0
+            no-lock: 1
+          - rust: 1.60.0
             rust-args: --all-features
     runs-on: ${{ matrix.os }}
     steps:
@@ -43,6 +45,15 @@ jobs:
           override: true
 
       - uses: Swatinem/rust-cache@v1
+
+      # If we're testing with Rust < 1.60, cargo won't be able to find
+      # the clap version specified in Cargo.lock, so remove the lockfile.
+      # This is safe because applications that only use us as a library will
+      # also ignore our Cargo.lock.
+      # https://users.rust-lang.org/t/optional-dependencies-and-msrv/82151
+      - name: Prune Cargo.lock
+        if: matrix.no-lock
+        run: rm Cargo.lock
 
       - name: cargo test
         uses: actions-rs/cargo@v1
