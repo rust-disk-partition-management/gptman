@@ -18,6 +18,7 @@ jobs:
         os:
           - ubuntu-latest
           - windows-latest
+          - macos-latest
           - macos-11
         rust:
           - stable
@@ -33,6 +34,13 @@ jobs:
             no-lock: 1
           - rust: 1.60.0
             rust-args: --all-features
+        exclude:
+          - os: macos-latest
+            rust: 1.46.0
+          - os: macos-11
+            rust: stable
+          - os: macos-11
+            rust: 1.60.0
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout source
