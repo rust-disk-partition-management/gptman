@@ -1296,7 +1296,7 @@ impl IndexMut<u32> for GPT {
 
 #[cfg(test)]
 mod test {
-    #![allow(clippy::blacklisted_name)]
+    #![allow(clippy::disallowed_names)]
 
     use super::*;
     use std::fs;
