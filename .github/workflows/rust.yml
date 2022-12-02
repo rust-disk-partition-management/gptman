@@ -18,7 +18,7 @@ jobs:
         os:
           - ubuntu-latest
           - windows-latest
-          - macos-latest
+          - macos-11
         rust:
           - stable
           - 1.46.0 # lib MSRV
