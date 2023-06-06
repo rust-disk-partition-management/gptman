@@ -15,14 +15,11 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v2
       - name: Install musl
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
         with:
           target: x86_64-unknown-linux-musl
       - name: Build release (Linux)
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --release --all-features --target x86_64-unknown-linux-musl
+        run: cargo build --release --all-features --target x86_64-unknown-linux-musl
       - run: strip target/x86_64-unknown-linux-musl/release/gptman
       - uses: actions/upload-artifact@v2
         with:
@@ -34,11 +31,9 @@ jobs:
     steps:
       - name: Checkout source
         uses: actions/checkout@v2
+      - uses: dtolnay/rust-toolchain@stable
       - name: Build release (Windows)
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --release --all-features --target=x86_64-pc-windows-msvc
+        run: cargo build --release --all-features --target=x86_64-pc-windows-msvc
       - uses: actions/upload-artifact@v2
         with:
           name: binary-windows
@@ -49,11 +44,9 @@ jobs:
     steps:
       - name: Checkout source
         uses: actions/checkout@v2
+      - uses: dtolnay/rust-toolchain@stable
       - name: Build release (OSX)
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --release --all-features
+        run: cargo build --release --all-features
       - uses: actions/upload-artifact@v2
         with:
           name: binary-osx

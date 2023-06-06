@@ -48,11 +48,7 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v2
 
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: ${{ matrix.rust }}
-          default: true
-          override: true
+      - uses: dtolnay/rust-toolchain@${{ matrix.rust }}
 
       - uses: Swatinem/rust-cache@v1
 
@@ -66,21 +62,12 @@ jobs:
         run: rm Cargo.lock
 
       - name: cargo test
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --workspace ${{ matrix.rust-args }}
+        run: cargo test --workspace ${{ matrix.rust-args }}
 
       - name: rustfmt
         if: github.event_name == 'pull_request' && matrix.lint
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
+        run: cargo fmt --all -- --check
 
       - name: clippy
         if: github.event_name == 'pull_request' && matrix.lint
-        uses: actions-rs/clippy-check@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          args: --all --tests --all-features -- -D warnings
+        run: cargo clippy --all --tests --all-features -- -D warnings

@@ -20,18 +20,12 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v2
 
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          default: true
-          override: true
+      - uses: dtolnay/rust-toolchain@stable
 
       - uses: Swatinem/rust-cache@v1
 
       - name: cargo update
-        uses: actions-rs/cargo@v1
-        with:
-          command: update
+        run: cargo update
 
       - name: Open pull request
         uses: peter-evans/create-pull-request@v4.0.3
