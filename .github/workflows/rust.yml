@@ -20,10 +20,7 @@ jobs:
           - windows-latest
           - macos-latest
           - macos-11
-        rust:
-          - stable
-          - 1.46.0 # lib MSRV
-          - 1.60.0 # cli MSRV
+        rust: [stable, 1.46.0, 1.60.0]
         include:
           - os: ubuntu-latest
             rust: stable
