@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout source
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Install musl
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -21,7 +21,7 @@ jobs:
       - name: Build release (Linux)
         run: cargo build --release --all-features --target x86_64-unknown-linux-musl
       - run: strip target/x86_64-unknown-linux-musl/release/gptman
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v3
         with:
           name: binary-linux
           path: target/x86_64-unknown-linux-musl/release/gptman
@@ -30,11 +30,11 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout source
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@stable
       - name: Build release (Windows)
         run: cargo build --release --all-features --target=x86_64-pc-windows-msvc
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v3
         with:
           name: binary-windows
           path: target/x86_64-pc-windows-msvc/release/gptman.exe
@@ -43,11 +43,11 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: Checkout source
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@stable
       - name: Build release (OSX)
         run: cargo build --release --all-features
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v3
         with:
           name: binary-osx
           path: target/release/gptman
@@ -59,15 +59,15 @@ jobs:
       - name: Get the version
         id: get_version
         run: echo ::set-output name=VERSION::${GITHUB_REF#refs/tags/}
-      - uses: actions/download-artifact@v2
+      - uses: actions/download-artifact@v3
         with:
           name: binary-linux
           path: binary-linux
-      - uses: actions/download-artifact@v2
+      - uses: actions/download-artifact@v3
         with:
           name: binary-windows
           path: binary-windows
-      - uses: actions/download-artifact@v2
+      - uses: actions/download-artifact@v3
         with:
           name: binary-osx
           path: binary-osx

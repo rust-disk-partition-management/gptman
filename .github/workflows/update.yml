@@ -18,17 +18,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout source
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - uses: dtolnay/rust-toolchain@stable
 
-      - uses: Swatinem/rust-cache@v1
+      - uses: Swatinem/rust-cache@v2
 
       - name: cargo update
         run: cargo update
 
       - name: Open pull request
-        uses: peter-evans/create-pull-request@v4.0.3
+        uses: peter-evans/create-pull-request@v5
         with:
           branch: cargo-update
           title: "cargo update"
