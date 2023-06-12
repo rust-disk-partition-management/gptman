@@ -50,7 +50,6 @@ jobs:
         with:
           toolchain: ${{ matrix.rust }}
 
-
       - uses: Swatinem/rust-cache@v2
 
       # If we're testing with Rust < 1.60, cargo won't be able to find
@@ -61,6 +60,9 @@ jobs:
       - name: Prune Cargo.lock
         if: matrix.no-lock
         run: rm Cargo.lock
+
+      - run: cargo --version
+      - run: rustc --version
 
       - name: cargo test
         run: cargo test --workspace ${{ matrix.rust-args }}
