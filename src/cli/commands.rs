@@ -347,7 +347,7 @@ where
     R: Read + Seek,
 {
     let mut bytes_read = 0;
-    let mut pos = reader.seek(SeekFrom::Current(0))?;
+    let mut pos = reader.stream_position()?;
     let mut skipping = false;
 
     while bytes_read < limit {
