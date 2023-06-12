@@ -8,22 +8,12 @@ on:
   pull_request:
     branches: [ main ]
 
-env:
-  CARGO_TERM_COLOR: always
-
 jobs:
   test:
     strategy:
       matrix:
-        os:
-          - ubuntu-latest
-          - windows-latest
-          - macos-latest
-          - macos-11
-        rust:
-          - stable
-          - 1.46.0 # lib MSRV
-          - 1.60.0 # cli MSRV
+        os: [ ubuntu-latest, windows-latest, macos-latest, macos-11 ]
+        rust: [ stable, 1.46.0, 1.60.0 ]
         include:
           - os: ubuntu-latest
             rust: stable
