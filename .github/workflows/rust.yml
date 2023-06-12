@@ -38,12 +38,10 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v3
 
-      - if: ${{ matrix.rust }} == "stable"
-        uses: dtolnay/rust-toolchain@stable
-      - if: ${{ matrix.rust }} == "1.46.0"
-        uses: dtolnay/rust-toolchain@1.46.0
-      - if: ${{ matrix.rust }} == "1.60.0"
-        uses: dtolnay/rust-toolchain@1.60.0
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust }}
+
 
       - uses: Swatinem/rust-cache@v2
 
