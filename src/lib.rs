@@ -234,7 +234,7 @@ impl GPTHeader {
     where
         R: Read + Seek,
     {
-        let gpt: GPTHeader = deserialize_from(&mut reader)?;
+        let gpt: GPTHeader = deserialize_from(reader)?;
 
         if &gpt.signature != b"EFI PART" {
             return Err(Error::InvalidSignature);
@@ -531,7 +531,7 @@ impl GPTPartitionEntry {
     where
         R: Read,
     {
-        deserialize_from(&mut reader)
+        deserialize_from(reader)
     }
 
     /// Returns `true` if the partition entry is not used (type GUID == `[0; 16]`)
