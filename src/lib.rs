@@ -230,7 +230,7 @@ impl GPTHeader {
     ///
     /// The field `last_usable_lba` is not updated to reflect the actual size of the disk. You must
     /// do this yourself by calling `update_from`.
-    pub fn read_from<R: ?Sized>(mut reader: &mut R) -> Result<GPTHeader>
+    pub fn read_from<R: ?Sized>(reader: &mut R) -> Result<GPTHeader>
     where
         R: Read + Seek,
     {
@@ -527,7 +527,7 @@ impl GPTPartitionEntry {
     }
 
     /// Read a partition entry from the reader at the current position.
-    pub fn read_from<R: ?Sized>(mut reader: &mut R) -> bincode::Result<GPTPartitionEntry>
+    pub fn read_from<R: ?Sized>(reader: &mut R) -> bincode::Result<GPTPartitionEntry>
     where
         R: Read,
     {
