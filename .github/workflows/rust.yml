@@ -23,7 +23,7 @@ jobs:
         rust:
           - stable
           - 1.46.0 # lib MSRV
-          - 1.60.0 # cli MSRV
+          - 1.64.0 # cli MSRV
         include:
           - os: ubuntu-latest
             rust: stable
@@ -32,7 +32,7 @@ jobs:
             rust-args: --all-features
           - rust: 1.46.0
             old-cargo-compat: 1
-          - rust: 1.60.0
+          - rust: 1.64.0
             rust-args: --all-features
         exclude:
           # rust < 1.54 does not work on macos >= 12:
@@ -42,7 +42,7 @@ jobs:
           - os: macos-11
             rust: stable
           - os: macos-11
-            rust: 1.60.0
+            rust: 1.64.0
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout source
