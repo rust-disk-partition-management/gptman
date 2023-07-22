@@ -64,8 +64,8 @@ jobs:
       - name: Compatibility fixes for older versions of cargo
         if: matrix.no-lock
         run: |
-          cargo update -p serde --precise 1.0.156
           cargo update -p clap --precise 3.2.25
+          cargo update -p serde --precise 1.0.156
           cargo update -p thiserror --precise 1.0.38
 
       - name: cargo test
