@@ -1,4 +1,4 @@
-#![allow(clippy::from_str_radix_10)]
+#![allow(clippy::from_str_radix_10, clippy::seek_from_current)]
 
 mod attribute_bits;
 mod commands;
