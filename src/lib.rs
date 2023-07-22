@@ -69,7 +69,6 @@
 //! ```
 
 #![deny(missing_docs)]
-#![allow(clippy::seek_from_current)]
 
 use bincode::{deserialize_from, serialize, serialize_into};
 use crc::{Crc, CRC_32_ISO_HDLC};
