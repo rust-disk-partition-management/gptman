@@ -66,7 +66,7 @@ Installation
     Cargo.toml:
     ```toml
     [dependencies]
-    gptman = "0.8.0"
+    gptman = "1"
     ```
 
 Library Usage
