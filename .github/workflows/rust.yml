@@ -3,8 +3,6 @@ name: Rust
 on:
   push:
     branches: [ main ]
-  schedule:
-    - cron: 0 0 1 * *
   pull_request:
     branches: [ main ]
 
