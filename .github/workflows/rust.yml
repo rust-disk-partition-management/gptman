@@ -21,7 +21,7 @@ jobs:
           - macos-latest
         rust:
           - stable
-          - 1.63.0 # lib MSRV
+          - msrv
           - 1.64.0 # cli MSRV
         include:
           - os: ubuntu-latest
@@ -36,9 +36,20 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v2
 
+      - name: Select Rust version
+        shell: bash
+        run: |
+          RUST_VER="${{ matrix.rust }}"
+          if [ "$RUST_VER" = msrv ]; then
+              RUST_VER=$(cargo metadata --format-version 1 --no-deps | \
+                  jq -r '.packages[0].rust_version')
+              echo "MSRV: $RUST_VER"
+          fi
+          echo "RUST_VER=$RUST_VER" >> $GITHUB_ENV
+
       - uses: actions-rs/toolchain@v1
         with:
-          toolchain: ${{ matrix.rust }}
+          toolchain: ${{ env.RUST_VER }}
           default: true
           override: true
 
