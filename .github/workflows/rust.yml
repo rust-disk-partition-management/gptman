@@ -19,10 +19,9 @@ jobs:
           - ubuntu-latest
           - windows-latest
           - macos-latest
-          - macos-11
         rust:
           - stable
-          - 1.46.0 # lib MSRV
+          - msrv
           - 1.64.0 # cli MSRV
         include:
           - os: ubuntu-latest
@@ -30,46 +29,31 @@ jobs:
             lint: 1
           - rust: stable
             rust-args: --all-features
-          - rust: 1.46.0
-            old-cargo-compat: 1
           - rust: 1.64.0
             rust-args: --all-features
-        exclude:
-          # rust < 1.54 does not work on macos >= 12:
-          # https://rust-lang.zulipchat.com/#narrow/stream/182449-t-compiler.2Fhelp/topic/.E2.9C.94.20How.20can.20I.20fix.20Rust.201.2E53.2E0.20or.20earlier.20to.20run.20on.20macOS.2012.2E6.3F/near/299263887
-          - os: macos-latest
-            rust: 1.46.0
-          - os: macos-11
-            rust: stable
-          - os: macos-11
-            rust: 1.64.0
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout source
         uses: actions/checkout@v2
 
+      - name: Select Rust version
+        shell: bash
+        run: |
+          RUST_VER="${{ matrix.rust }}"
+          if [ "$RUST_VER" = msrv ]; then
+              RUST_VER=$(cargo metadata --format-version 1 --no-deps | \
+                  jq -r '.packages[0].rust_version')
+              echo "MSRV: $RUST_VER"
+          fi
+          echo "RUST_VER=$RUST_VER" >> $GITHUB_ENV
+
       - uses: actions-rs/toolchain@v1
         with:
-          toolchain: ${{ matrix.rust }}
+          toolchain: ${{ env.RUST_VER }}
           default: true
           override: true
 
       - uses: Swatinem/rust-cache@v1
-
-      - name: Compatibility fixes for older versions of cargo
-        if: matrix.old-cargo-compat
-        run: |
-          # If we're testing with Rust < 1.60, cargo won't be able to find
-          # the clap version specified in Cargo.lock, so remove the lockfile.
-          # This is safe because applications that only use us as a library
-          # will also ignore our Cargo.lock.
-          # https://users.rust-lang.org/t/optional-dependencies-and-msrv/82151
-          cargo update -p clap --precise 3.2.25
-          # Downgrade the following crates because they require edition 2021
-          cargo update -p serde --precise 1.0.156
-          cargo update -p thiserror --precise 1.0.39
-          cargo update -p quote --precise 1.0.30
-          cargo update -p proc-macro2 --precise 1.0.65
 
       - name: cargo test
         uses: actions-rs/cargo@v1
