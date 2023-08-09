@@ -84,7 +84,7 @@ use std::ops::{Index, IndexMut, RangeInclusive};
 use thiserror::Error;
 
 /// Linux specific helpers
-#[cfg(target_os = "linux")]
+#[cfg(all(target_os = "linux", feature = "linux"))]
 pub mod linux;
 
 const DEFAULT_ALIGN: u64 = 2048;
