@@ -3,12 +3,11 @@ name: Rust
 on:
   push:
     branches: [ main ]
-  schedule:
-    - cron: 0 0 1 * *
   pull_request:
     branches: [ main ]
 
 env:
+  CARGO_INCREMENTAL: 0
   CARGO_TERM_COLOR: always
 
 jobs:
@@ -34,43 +33,31 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout source
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
-      - name: Select Rust version
+      - name: Install toolchain
         shell: bash
         run: |
-          RUST_VER="${{ matrix.rust }}"
-          if [ "$RUST_VER" = msrv ]; then
-              RUST_VER=$(cargo metadata --format-version 1 --no-deps | \
+          ver="${{ matrix.rust }}"
+          if [ "$ver" = msrv ]; then
+              ver=$(cargo metadata --format-version 1 --no-deps | \
                   jq -r '.packages[0].rust_version')
-              echo "MSRV: $RUST_VER"
           fi
-          echo "RUST_VER=$RUST_VER" >> $GITHUB_ENV
+          rustup toolchain install "$ver" --profile minimal --no-self-update
+          rustup default "$ver"
+          echo "Installed:"
+          cargo --version
+          rustc --version --verbose
 
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: ${{ env.RUST_VER }}
-          default: true
-          override: true
-
-      - uses: Swatinem/rust-cache@v1
+      - uses: Swatinem/rust-cache@v2
 
       - name: cargo test
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --workspace ${{ matrix.rust-args }}
+        run: cargo test --workspace ${{ matrix.rust-args }}
 
       - name: rustfmt
         if: github.event_name == 'pull_request' && matrix.lint
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
+        run: cargo fmt --all -- --check
 
       - name: clippy
         if: github.event_name == 'pull_request' && matrix.lint
-        uses: actions-rs/clippy-check@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          args: --all --tests --all-features -- -D warnings
+        run: cargo clippy --all --tests --all-features -- -D warnings
