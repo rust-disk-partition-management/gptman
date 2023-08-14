@@ -5,6 +5,10 @@ on:
     tags:
       - 'v*'
 
+env:
+  CARGO_INCREMENTAL: 0
+  CARGO_TERM_COLOR: always
+
 permissions:
   contents: write
 
@@ -13,18 +17,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout source
-        uses: actions/checkout@v2
-      - name: Install musl
-        uses: actions-rs/toolchain@v1
-        with:
-          target: x86_64-unknown-linux-musl
+        uses: actions/checkout@v3
+      - name: Install toolchain
+        run: |
+          rustup toolchain install stable --profile minimal --no-self-update \
+              --target x86_64-unknown-linux-musl
+          rustup default stable
+          echo "Installed:"
+          cargo --version
+          rustc --version --verbose
       - name: Build release (Linux)
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --release --all-features --target x86_64-unknown-linux-musl
+        run: cargo build --release --all-features --target x86_64-unknown-linux-musl
       - run: strip target/x86_64-unknown-linux-musl/release/gptman
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v3
         with:
           name: binary-linux
           path: target/x86_64-unknown-linux-musl/release/gptman
@@ -33,13 +38,19 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout source
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
+      - name: Install toolchain
+        shell: bash
+        run: |
+          rustup toolchain install stable --profile minimal --no-self-update \
+              --target x86_64-pc-windows-msvc
+          rustup default stable
+          echo "Installed:"
+          cargo --version
+          rustc --version --verbose
       - name: Build release (Windows)
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --release --all-features --target=x86_64-pc-windows-msvc
-      - uses: actions/upload-artifact@v2
+        run: cargo build --release --all-features --target=x86_64-pc-windows-msvc
+      - uses: actions/upload-artifact@v3
         with:
           name: binary-windows
           path: target/x86_64-pc-windows-msvc/release/gptman.exe
@@ -48,13 +59,17 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: Checkout source
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
+      - name: Install toolchain
+        run: |
+          rustup toolchain install stable --profile minimal --no-self-update
+          rustup default stable
+          echo "Installed:"
+          cargo --version
+          rustc --version --verbose
       - name: Build release (OSX)
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --release --all-features
-      - uses: actions/upload-artifact@v2
+        run: cargo build --release --all-features
+      - uses: actions/upload-artifact@v3
         with:
           name: binary-osx
           path: target/release/gptman
@@ -63,56 +78,28 @@ jobs:
     needs: [build-linux, build-windows, build-osx-x86]
     runs-on: ubuntu-latest
     steps:
-      - name: Get the version
-        id: get_version
-        run: echo ::set-output name=VERSION::${GITHUB_REF#refs/tags/}
-      - uses: actions/download-artifact@v2
+      - uses: actions/download-artifact@v3
         with:
           name: binary-linux
           path: binary-linux
-      - uses: actions/download-artifact@v2
+      - uses: actions/download-artifact@v3
         with:
           name: binary-windows
           path: binary-windows
-      - uses: actions/download-artifact@v2
+      - uses: actions/download-artifact@v3
         with:
           name: binary-osx
           path: binary-osx
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Arrange artifacts
+        run: |
+          mkdir artifacts
+          mv binary-linux/gptman "artifacts/gptman-${{ github.ref_name }}-linux-x86_64"
+          mv binary-windows/gptman.exe "artifacts/gptman-${{ github.ref_name }}-win-x86_64.exe"
+          mv binary-osx/gptman "artifacts/gptman-${{ github.ref_name }}-osx-x86_64"
+      - uses: ncipollo/release-action@v1
         with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
-          body: gptman release ${{ steps.get_version.outputs.VERSION }}
-          draft: false
-          prerelease: false
-      - name: Upload Release Asset Linux
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: binary-linux/gptman
-          asset_name: gptman-${{ steps.get_version.outputs.VERSION }}-linux-x86_64
-          asset_content_type: application/x-pie-executable
-      - name: Upload Release Asset Windows
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: binary-windows/gptman.exe
-          asset_name: gptman-${{ steps.get_version.outputs.VERSION }}-win-x86_64.exe
-          asset_content_type: application/x-dosexec
-      - name: Upload Release Asset OSX
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: binary-osx/gptman
-          asset_name: gptman-${{ steps.get_version.outputs.VERSION }}-osx-x86_64
-          asset_content_type: application/x-mach-binary
+          artifactErrorsFailBuild: true
+          artifacts: "artifacts/*"
+          body: gptman release ${{ github.ref_name }}
+          makeLatest: true
+          name: Release ${{ github.ref_name }}
