@@ -1,6 +1,15 @@
 Changelog
 =========
 
+## v1.0.2
+
+- Update library MSRV to 1.63 and edition to 2021 (#120)
+- Turn off nix's default features (#123)
+
+## v1.0.1
+
+- Allow a wider version range for nix (#116)
+
 ## v1.0.0
 
 - [BREAKING] Disable `cli` feature by default (#81)
