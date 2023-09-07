@@ -24,6 +24,7 @@ macro_rules! ask_with_default {
             if input == "" {
                 break Ok($default);
             } else {
+                #[allow(clippy::redundant_closure_call)]
                 match $parser(&input) {
                     Err(err) => {
                         println!("{}", err);
