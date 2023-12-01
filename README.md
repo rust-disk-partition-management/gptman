@@ -9,7 +9,7 @@
 gptman
 ======
 
-Pure-Rust library to work with GUID partition tables.
+Pure Rust library to read and modify GUID partition tables.
 
 Features
 --------
