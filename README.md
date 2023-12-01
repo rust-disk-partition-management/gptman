@@ -11,8 +11,8 @@ gptman
 
 Pure Rust library to read and modify GUID partition tables.
 
-Features
---------
+Things you can do
+-----------------
 
  *  Read/Write GPT from 512 and 4096 bytes sector size disks
  *  Create a new GPT on a disk
