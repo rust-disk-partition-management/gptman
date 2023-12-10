@@ -11,7 +11,7 @@ gptman
 
 A library that allows managing GUID partition tables.
 
-A CLI tool for Linux that allows you to copy a partition from one disk to
+A CLI tool for Linux + Mac OS X that allows you to copy a partition from one disk to
 another and more.
 
 Features
