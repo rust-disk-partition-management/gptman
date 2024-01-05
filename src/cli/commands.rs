@@ -529,7 +529,7 @@ fn write(gpt: &mut GPT, opt: &Opt) -> Result<()> {
     gpt.write_into(&mut f)?;
 
     if opt.init {
-        GPT::write_protective_mbr_into(&mut f, gpt.sector_size)?;
+        GPT::write_protective_mbr_into(&mut f, gpt.sector_size, false)?;
         println!("protective MBR has been written");
     }
 
