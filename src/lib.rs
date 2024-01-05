@@ -1231,6 +1231,11 @@ impl GPT {
 
     /// This function writes a protective MBR in the first sector of the disk
     /// starting at byte 446 and ending at byte 511. Any existing data will be overwritten.
+    ///
+    /// * `bootable` - Indicates whether the partition in the MBR partition table should be marked
+    /// as bootable. Some legacy BIOS systems do not consider a disk to be bootable if there isn't
+    /// an MBR partition marked as bootable, so this should be set to `true` if you intend the disk
+    /// to be bootable on those systems.
     pub fn write_protective_mbr_into<W: ?Sized>(
         mut writer: &mut W,
         sector_size: u64,
