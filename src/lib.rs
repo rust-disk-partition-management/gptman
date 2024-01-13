@@ -1255,6 +1255,7 @@ impl GPT {
     {
         Self::write_protective_mbr_into_impl(&mut writer, sector_size, true)
     }
+
     fn write_protective_mbr_into_impl<W: ?Sized>(
         mut writer: &mut W,
         sector_size: u64,
