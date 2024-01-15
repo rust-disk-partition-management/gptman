@@ -269,7 +269,7 @@ dependencies = [
 
 [[package]]
 name = "gptman"
-version = "1.0.2"
+version = "1.1.0"
 dependencies = [
  "ansi_term",
  "bincode",
