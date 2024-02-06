@@ -1231,15 +1231,48 @@ impl GPT {
 
     /// This function writes a protective MBR in the first sector of the disk
     /// starting at byte 446 and ending at byte 511. Any existing data will be overwritten.
+    ///
+    /// See also: [`Self::write_bootable_protective_mbr_into`].
     pub fn write_protective_mbr_into<W: ?Sized>(mut writer: &mut W, sector_size: u64) -> Result<()>
+    where
+        W: Write + Seek,
+    {
+        Self::write_protective_mbr_into_impl(&mut writer, sector_size, false)
+    }
+
+    /// This function writes a protective MBR in the first sector of the disk
+    /// starting at byte 446 and ending at byte 511. Any existing data will be overwritten.
+    /// This function differs from [`Self::write_protective_mbr_into`] in that the partition in the
+    /// MBR partition table is marked as bootable. Some legacy BIOS systems do not consider a disk
+    /// to be bootable if there isn't an MBR partition marked as bootable in the MBR partition
+    /// table.
+    pub fn write_bootable_protective_mbr_into<W: ?Sized>(
+        mut writer: &mut W,
+        sector_size: u64,
+    ) -> Result<()>
+    where
+        W: Write + Seek,
+    {
+        Self::write_protective_mbr_into_impl(&mut writer, sector_size, true)
+    }
+
+    fn write_protective_mbr_into_impl<W: ?Sized>(
+        mut writer: &mut W,
+        sector_size: u64,
+        bootable: bool,
+    ) -> Result<()>
     where
         W: Write + Seek,
     {
         let size = writer.seek(SeekFrom::End(0))? / sector_size - 1;
         writer.seek(SeekFrom::Start(446))?;
         // partition 1
+        if bootable {
+            writer.write_all(&[0x80])?;
+        } else {
+            writer.write_all(&[0x00])?;
+        }
         writer.write_all(&[
-            0x00, // status
             0x00, 0x02, 0x00, // CHS address of first absolute sector
             0xee, // partition type
             0xff, 0xff, 0xff, // CHS address of last absolute sector

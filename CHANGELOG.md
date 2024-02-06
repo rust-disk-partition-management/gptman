@@ -1,6 +1,11 @@
 Changelog
 =========
 
+## v1.1.0
+
+- Add function write_bootable_protective_mbr_into (#132)
+- [CLI] Update MSRV to 1.70 for clap 4.4
+
 ## v1.0.2
 
 - Update library MSRV to 1.63 and edition to 2021 (#120)
