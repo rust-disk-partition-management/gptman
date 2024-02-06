@@ -9,68 +9,41 @@
 gptman
 ======
 
-A library that allows managing GUID partition tables.
+Pure Rust library to read and modify GUID partition tables.
 
-A CLI tool for Linux that allows you to copy a partition from one disk to
-another and more.
-
-Features
---------
+Things you can do
+-----------------
 
  *  Read/Write GPT from 512 and 4096 bytes sector size disks
- *  Create a new GPT on a disk (-i, --init)
- *  Insert/delete a partition in the table (n, d)
- *  Align partitions automatically (a)
- *  **Resize a partition (r)**
- *  **Copy/clone a partition from one disk and insert it to another (c)**
- *  Change partition type (and list by category) (t)
- *  Fix partitions order (f)
- *  Change disk GUID (i)
- *  Change partition name (L)
- *  Change partition GUID (u)
- *  Toggle legacy BIOS bootable (A)
- *  Toggle no block IO protocol (B)
- *  Toggle required partition flag (R)
- *  Toggle attributes (S)
- *  Customize columns to print (-o, --output)
- *  Print raw data of disklabel (D)
- *  Swap partition indexes (s)
- *  Randomize disk's GUID and all partition's GUID (Z)
- *  Copy/clone all partitions from one disk and insert it to another (C)
+ *  Create a new GPT on a disk
+ *  Insert/delete a partition in the table
+ *  Align partitions automatically (to sector size)
+ *  Resize a partition
+ *  Copy/clone a partition from one disk and insert it into another
+ *  Change partition type
+ *  Fix partitions order
+ *  Change disk GUID
+ *  Change partition name
+ *  Change partition GUID
+ *  Toggle legacy BIOS bootable
+ *  Toggle no block IO protocol
+ *  Toggle required partition flag
+ *  Toggle attributes
+ *  Swap partition indexes
+ *  Copy/clone all partitions from one disk and insert it to another
  *  Write protective MBR
- *  Check how empty a partition physically is (number of empty blocks) (z)
 
 Installation
 ------------
 
- *  With `curl`:
+Cargo.toml:
+```toml
+[dependencies]
+gptman = "1"
+```
 
-    ```console
-    curl -sSL http://gptman.cecton.com | sh -
-    ```
-
- *  CLI:
-
-    ```console
-    cargo install --features=cli gptman
-    ```
-
-    Statically linked:
-
-    ```console
-    cargo install --features=cli --target=x86_64-unknown-linux-musl gptman
-    ```
-
- *  Library:
-
-    Cargo.toml:
-    ```toml
-    [dependencies]
-    gptman = "1"
-    ```
-
-Library Usage
--------------
+Usage
+-----
 
 Reading all the partitions of a disk:
 
