@@ -1,6 +1,10 @@
 Changelog
 =========
 
+## v1.1.1
+
+- [CLI] Remove CLI (#127)
+
 ## v1.1.0
 
 - Add function write_bootable_protective_mbr_into (#132)
