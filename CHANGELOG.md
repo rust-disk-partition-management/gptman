@@ -1,6 +1,11 @@
 Changelog
 =========
 
+## v1.1.2
+
+- Remove leftover Cargo.lock file
+- Allow a wider version range for nix (up to 0.27) (#135)
+
 ## v1.1.1
 
 - [CLI] Remove CLI (#127)
