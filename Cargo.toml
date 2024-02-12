@@ -27,4 +27,4 @@ thiserror = "1.0"
 default = [ "nix" ]
 
 [target.'cfg(target_os = "linux")'.dependencies]
-nix = { version = ">= 0.24, < 0.27", default-features = false, features = ["ioctl"], optional = true }
+nix = { version = ">= 0.24, < 0.28", default-features = false, features = ["ioctl"], optional = true }
