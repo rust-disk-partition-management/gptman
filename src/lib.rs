@@ -1246,6 +1246,10 @@ impl GPT {
     /// MBR partition table is marked as bootable. Some legacy BIOS systems do not consider a disk
     /// to be bootable if there isn't an MBR partition marked as bootable in the MBR partition
     /// table.
+    ///
+    /// <div class="warning">Some systems will not consider a disk to be bootable in UEFI mode
+    /// if the pMBR is marked as bootable, so this should only be used if booting on legacy BIOS
+    /// systems is a requirement.</div>
     pub fn write_bootable_protective_mbr_into<W: ?Sized>(
         mut writer: &mut W,
         sector_size: u64,
