@@ -5,9 +5,13 @@ use std::os::unix::io::AsRawFd;
 use thiserror::Error;
 
 mod ioctl {
-    use nix::{ioctl_none, ioctl_read_bad};
+    use nix::{ioctl_none, ioctl_read_bad, request_code_none};
 
-    ioctl_read_bad!(blksszget, 0x1268, u64);
+    ioctl_read_bad!(
+        blksszget,
+        request_code_none!(0x12, 104),
+        ::std::os::raw::c_int
+    );
     ioctl_none!(blkrrpart, 0x12, 95);
 }
 
@@ -50,7 +54,7 @@ pub fn reread_partition_table(file: &mut fs::File) -> Result<(), BlockError> {
 }
 
 /// Makes an ioctl call to obtain the sector size of a block device
-pub fn get_sector_size(file: &mut fs::File) -> Result<u64, BlockError> {
+pub fn get_sector_size(file: &mut fs::File) -> Result<i32, BlockError> {
     let metadata = file.metadata().map_err(BlockError::Metadata)?;
     let mut sector_size = 512;
 
