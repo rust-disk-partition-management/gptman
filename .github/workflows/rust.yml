@@ -23,7 +23,7 @@ jobs:
           - msrv
         include:
           - os: ubuntu-latest
-            rust: stable
+            rust: msrv
             lint: 1
           - rust: stable
             rust-args: --all-features
