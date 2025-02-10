@@ -23,7 +23,7 @@ jobs:
           - msrv
         include:
           - os: ubuntu-latest
-            rust: stable
+            rust: msrv
             lint: 1
           - rust: stable
             rust-args: --all-features
@@ -39,8 +39,9 @@ jobs:
           if [ "$ver" = msrv ]; then
               ver=$(cargo metadata --format-version 1 --no-deps | \
                   jq -r '.packages[0].rust_version')
+              extra=(-c rustfmt -c clippy)
           fi
-          rustup toolchain install "$ver" --profile minimal --no-self-update
+          rustup toolchain install "$ver" --profile minimal --no-self-update "${extra[@]}"
           rustup default "$ver"
           echo "Installed:"
           cargo --version
