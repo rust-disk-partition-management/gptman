@@ -54,6 +54,11 @@ pub fn reread_partition_table(file: &mut fs::File) -> Result<(), BlockError> {
 }
 
 /// Makes an ioctl call to obtain the sector size of a block device
+///
+/// Under normal conditions, `get_sector_size` retrieves the logical sector size using the `BLKSSZGET` ioctl command.
+/// If the system returns an error, the function handles it appropriately. However, in the rare event that the system
+/// reports success (0) but writes a negative value, the function will default to 512 bytes to ensure stability.
+/// This is a safeguard against unexpected system behavior.
 pub fn get_sector_size(file: &mut fs::File) -> Result<u64, BlockError> {
     let metadata = file.metadata().map_err(BlockError::Metadata)?;
     let mut sector_size = 512;
