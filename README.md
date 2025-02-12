@@ -1,6 +1,6 @@
 ![Rust](https://github.com/rust-disk-partition-management/gptman/actions/workflows/rust.yml/badge.svg)
 [![Latest Version](https://img.shields.io/crates/v/gptman.svg)](https://crates.io/crates/gptman)
-![Rust 1.63+](https://img.shields.io/badge/rust-1.63%2B-orange.svg)
+![Rust 1.65+](https://img.shields.io/badge/rust-1.65%2B-orange.svg)
 ![License](https://img.shields.io/crates/l/gptman)
 [![Docs.rs](https://docs.rs/gptman/badge.svg)](https://docs.rs/gptman)
 [![LOC](https://tokei.rs/b1/github/rust-disk-partition-management/gptman)](https://github.com/rust-disk-partition-management/gptman)

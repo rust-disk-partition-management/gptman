@@ -1,9 +1,13 @@
 Changelog
 =========
 
+## v1.1.4
+
+- Fix get sector size on mips64 (#138)
+
 ## v1.1.3
 
-- Document that pmbr shouldn't be used unless nedded (#136)
+- Document that pmbr shouldn't be used unless needed (#136)
 - Update library MSRV to 1.65 because of crc 3.2.1 (#139)
 
 ## v1.1.2
