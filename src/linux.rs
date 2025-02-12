@@ -54,14 +54,14 @@ pub fn reread_partition_table(file: &mut fs::File) -> Result<(), BlockError> {
 }
 
 /// Makes an ioctl call to obtain the sector size of a block device
-pub fn get_sector_size(file: &mut fs::File) -> Result<i32, BlockError> {
+pub fn get_sector_size(file: &mut fs::File) -> Result<u64, BlockError> {
     let metadata = file.metadata().map_err(BlockError::Metadata)?;
     let mut sector_size = 512;
 
     if metadata.st_mode() & S_IFMT == S_IFBLK {
         match unsafe { ioctl::blksszget(file.as_raw_fd(), &mut sector_size) } {
             Err(err) => Err(BlockError::GetSectorSize(err)),
-            Ok(0) => Ok(sector_size),
+            Ok(0) => Ok(sector_size.try_into().unwrap_or(512)),
             Ok(r) => Err(BlockError::InvalidReturnValue(r)),
         }
     } else {
