@@ -49,10 +49,6 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
-      - name: Set nix to minimum version (0.24)
-        if: matrix.rust == 'msrv'
-        run: cargo update -p nix --precise 0.24.0
-
       - name: cargo test
         run: cargo test --workspace ${{ matrix.rust-args }}
 

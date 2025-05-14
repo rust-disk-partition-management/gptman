@@ -4,7 +4,7 @@ version = "1.1.4"
 authors = ["Cecile Tonglet <cecile.tonglet@cecton.com>"]
 license = "MIT OR Apache-2.0"
 edition = "2021"
-rust-version = "1.65"
+rust-version = "1.85"
 description = "Pure Rust library to read and modify GUID partition tables"
 repository = "https://github.com/rust-disk-partition-management/gptman"
 homepage = "https://github.com/rust-disk-partition-management/gptman"
@@ -27,4 +27,4 @@ thiserror = "2.0.12"
 default = [ "nix" ]
 
 [target.'cfg(target_os = "linux")'.dependencies]
-nix = { version = ">= 0.24, < 0.28", default-features = false, features = ["ioctl"], optional = true }
+nix = { version = "0.30", default-features = false, features = ["ioctl"], optional = true }
