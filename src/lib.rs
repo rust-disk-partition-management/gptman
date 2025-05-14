@@ -70,7 +70,9 @@
 
 #![deny(missing_docs)]
 
-use bincode::{deserialize_from, serialize, serialize_into};
+use bincode::config::legacy;
+use bincode::error::{DecodeError, EncodeError};
+use bincode::serde::{decode_from_std_read, encode_into_std_write, encode_to_vec};
 use crc::{Crc, CRC_32_ISO_HDLC};
 use serde::de::{SeqAccess, Visitor};
 use serde::ser::SerializeTuple;
@@ -96,7 +98,10 @@ const MAX_ALIGN: u64 = 16384;
 pub enum Error {
     /// Derialization errors.
     #[error("deserialization failed")]
-    Deserialize(#[from] bincode::Error),
+    Deserialize(#[from] DecodeError),
+    /// Serialization errors.
+    #[error("seserialization failed")]
+    Seserialize(#[from] EncodeError),
     /// I/O errors.
     #[error("generic I/O error")]
     Io(#[from] io::Error),
@@ -230,11 +235,11 @@ impl GPTHeader {
     ///
     /// The field `last_usable_lba` is not updated to reflect the actual size of the disk. You must
     /// do this yourself by calling `update_from`.
-    pub fn read_from<R: ?Sized>(reader: &mut R) -> Result<GPTHeader>
+    pub fn read_from<R: ?Sized>(mut reader: &mut R) -> Result<GPTHeader>
     where
         R: Read + Seek,
     {
-        let gpt: GPTHeader = deserialize_from(reader)?;
+        let gpt: GPTHeader = decode_from_std_read(&mut reader, legacy())?;
 
         if &gpt.signature != b"EFI PART" {
             return Err(Error::InvalidSignature);
@@ -271,14 +276,14 @@ impl GPTHeader {
         self.update_crc32_checksum();
 
         writer.seek(SeekFrom::Start(self.primary_lba * sector_size))?;
-        serialize_into(&mut writer, &self)?;
+        encode_into_std_write(&self, &mut writer, legacy())?;
 
         for i in 0..self.number_of_partition_entries {
             writer.seek(SeekFrom::Start(
                 self.partition_entry_lba * sector_size
                     + u64::from(i) * u64::from(self.size_of_partition_entry),
             ))?;
-            serialize_into(&mut writer, &partitions[i as usize])?;
+            encode_into_std_write(&partitions[i as usize], &mut writer, legacy())?;
         }
 
         Ok(())
@@ -288,7 +293,7 @@ impl GPTHeader {
     pub fn generate_crc32_checksum(&self) -> u32 {
         let mut clone = self.clone();
         clone.crc32_checksum = 0;
-        let data = serialize(&clone).expect("could not serialize");
+        let data = encode_to_vec(&clone, legacy()).expect("could not serialize");
         assert_eq!(data.len() as u32, clone.header_size);
 
         Crc::<u32>::new(&CRC_32_ISO_HDLC).checksum(&data)
@@ -307,7 +312,7 @@ impl GPTHeader {
         let mut digest = crc.digest();
         let mut wrote = 0;
         for x in partitions {
-            let data = serialize(&x).expect("could not serialize");
+            let data = encode_to_vec(&x, legacy()).expect("could not serialize");
             digest.update(&data);
             wrote += data.len();
         }
@@ -527,11 +532,11 @@ impl GPTPartitionEntry {
     }
 
     /// Read a partition entry from the reader at the current position.
-    pub fn read_from<R: ?Sized>(reader: &mut R) -> bincode::Result<GPTPartitionEntry>
+    pub fn read_from<R>(mut reader: &mut R) -> std::result::Result<GPTPartitionEntry, DecodeError>
     where
-        R: Read,
+        R: Read + ?Sized,
     {
-        deserialize_from(reader)
+        decode_from_std_read(&mut reader, legacy())
     }
 
     /// Returns `true` if the partition entry is not used (type GUID == `[0; 16]`)
@@ -1260,13 +1265,13 @@ impl GPT {
         Self::write_protective_mbr_into_impl(&mut writer, sector_size, true)
     }
 
-    fn write_protective_mbr_into_impl<W: ?Sized>(
+    fn write_protective_mbr_into_impl<W>(
         mut writer: &mut W,
         sector_size: u64,
         bootable: bool,
     ) -> Result<()>
     where
-        W: Write + Seek,
+        W: Write + Seek + ?Sized,
     {
         let size = writer.seek(SeekFrom::End(0))? / sector_size - 1;
         writer.seek(SeekFrom::Start(446))?;
@@ -1283,13 +1288,14 @@ impl GPT {
             0x01, 0x00, 0x00, 0x00, // LBA of first absolute sector
         ])?;
         // number of sectors in partition 1
-        serialize_into(
-            &mut writer,
+        encode_into_std_write(
             &(if size > u64::from(u32::max_value()) {
                 u32::max_value()
             } else {
                 size as u32
             }),
+            &mut writer,
+            legacy(),
         )?;
         writer.write_all(&[0; 16])?; // partition 2
         writer.write_all(&[0; 16])?; // partition 3
@@ -1382,7 +1388,7 @@ mod test {
                 }
 
                 // NOTE: testing that serializing the PartitionName (and the whole struct) works
-                let data1 = serialize(&partition).unwrap();
+                let data1 = encode_to_vec(&partition, legacy()).unwrap();
                 f.seek(SeekFrom::Start(
                     gpt.partition_entry_lba * ss
                         + u64::from(i) * u64::from(gpt.size_of_partition_entry),
@@ -1432,7 +1438,7 @@ mod test {
             assert_eq!(gpt.header.partition_entry_lba, 2);
             gpt.header.crc32_checksum = 1;
             cur.seek(SeekFrom::Start(gpt.sector_size)).unwrap();
-            serialize_into(&mut cur, &gpt.header).unwrap();
+            encode_into_std_write(&gpt.header, &mut cur, legacy()).unwrap();
             let maybe_gpt = GPT::read_from(&mut cur, gpt.sector_size);
             assert!(maybe_gpt.is_ok());
             let gpt = maybe_gpt.unwrap();
@@ -1587,7 +1593,7 @@ mod test {
 
             gpt.header.crc32_checksum = 1;
             cur.seek(SeekFrom::Start(ss)).unwrap();
-            serialize_into(&mut cur, &gpt.header).unwrap();
+            encode_into_std_write(&gpt.header, &mut cur, legacy()).unwrap();
             let maybe_gpt = GPT::read_from(&mut cur, ss);
             assert!(maybe_gpt.is_ok());
             let gpt = maybe_gpt.unwrap();
@@ -1608,7 +1614,7 @@ mod test {
             gpt.header.crc32_checksum = 1;
             let backup_lba = gpt.header.backup_lba;
             cur.seek(SeekFrom::Start(ss)).unwrap();
-            serialize_into(&mut cur, &gpt.header).unwrap();
+            encode_into_std_write(&gpt.header, &mut cur, legacy()).unwrap();
             let mut gpt = GPT::read_from(&mut cur, ss).unwrap();
             assert!(!gpt.is_primary());
             assert!(gpt.is_backup());
@@ -1628,7 +1634,7 @@ mod test {
 
             gpt.header.crc32_checksum = 1;
             cur.seek(SeekFrom::Start(ss)).unwrap();
-            serialize_into(&mut cur, &gpt.header).unwrap();
+            encode_into_std_write(&gpt.header, &mut cur, legacy()).unwrap();
             let maybe_gpt = GPT::read_from(&mut cur, ss);
             assert!(maybe_gpt.is_ok());
             let gpt = maybe_gpt.unwrap();
@@ -1658,7 +1664,7 @@ mod test {
 
             gpt.header.crc32_checksum = 1;
             cur.seek(SeekFrom::Start(ss)).unwrap();
-            serialize_into(&mut cur, &gpt.header).unwrap();
+            encode_into_std_write(&gpt.header, &mut cur, legacy()).unwrap();
             let maybe_gpt = GPT::read_from(&mut cur, ss);
             assert!(maybe_gpt.is_ok());
             let gpt = maybe_gpt.unwrap();
@@ -1862,8 +1868,8 @@ mod test {
             }
 
             cur.seek(SeekFrom::Start(446 + 8)).unwrap();
-            let first_lba: u32 = deserialize_from(&mut cur).unwrap();
-            let sectors: u32 = deserialize_from(&mut cur).unwrap();
+            let first_lba: u32 = decode_from_std_read(&mut cur, legacy()).unwrap();
+            let sectors: u32 = decode_from_std_read(&mut cur, legacy()).unwrap();
             assert_eq!(first_lba, 1);
             assert_eq!(sectors, 99);
         }
