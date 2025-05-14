@@ -1,6 +1,10 @@
 Changelog
 =========
 
+## v2.0.0
+
+- Bump versions of bincode, thiserror nix
+
 ## v1.1.4
 
 - Fix get sector size on mips64 (#138)
