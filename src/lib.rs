@@ -235,9 +235,9 @@ impl GPTHeader {
     ///
     /// The field `last_usable_lba` is not updated to reflect the actual size of the disk. You must
     /// do this yourself by calling `update_from`.
-    pub fn read_from<R: ?Sized>(mut reader: &mut R) -> Result<GPTHeader>
+    pub fn read_from<R>(mut reader: &mut R) -> Result<GPTHeader>
     where
-        R: Read + Seek,
+        R: Read + Seek + ?Sized,
     {
         let gpt: GPTHeader = decode_from_std_read(&mut reader, legacy())?;
 
@@ -263,14 +263,14 @@ impl GPTHeader {
 
     /// Write the GPT header into a writer. This operation will update the CRC32 checksums of the
     /// current struct and seek at the location `primary_lba` before trying to write to disk.
-    pub fn write_into<W: ?Sized>(
+    pub fn write_into<W>(
         &mut self,
         mut writer: &mut W,
         sector_size: u64,
         partitions: &[GPTPartitionEntry],
     ) -> Result<()>
     where
-        W: Write + Seek,
+        W: Write + Seek + ?Sized,
     {
         self.update_partition_entry_array_crc32(partitions);
         self.update_crc32_checksum();
@@ -312,7 +312,7 @@ impl GPTHeader {
         let mut digest = crc.digest();
         let mut wrote = 0;
         for x in partitions {
-            let data = encode_to_vec(&x, legacy()).expect("could not serialize");
+            let data = encode_to_vec(x, legacy()).expect("could not serialize");
             digest.update(&data);
             wrote += data.len();
         }
@@ -332,9 +332,9 @@ impl GPTHeader {
     /// Updates the header to match the specifications of the seeker given in argument.
     /// `first_usable_lba`, `last_usable_lba`, `primary_lba`, `backup_lba`, `partition_entry_lba`
     /// will be updated after this operation.
-    pub fn update_from<S: ?Sized>(&mut self, seeker: &mut S, sector_size: u64) -> Result<()>
+    pub fn update_from<S>(&mut self, seeker: &mut S, sector_size: u64) -> Result<()>
     where
-        S: Seek,
+        S: Seek + ?Sized,
     {
         let partition_array_size = (u64::from(self.number_of_partition_entries)
             * u64::from(self.size_of_partition_entry)
@@ -720,9 +720,9 @@ impl GPT {
     /// let gpt = gptman::GPT::read_from(&mut f, 512)
     ///     .expect("could not read the partition table");
     /// ```
-    pub fn read_from<R: ?Sized>(mut reader: &mut R, sector_size: u64) -> Result<GPT>
+    pub fn read_from<R>(mut reader: &mut R, sector_size: u64) -> Result<GPT>
     where
-        R: Read + Seek,
+        R: Read + Seek + ?Sized,
     {
         use self::Error::*;
 
@@ -784,9 +784,9 @@ impl GPT {
     /// let gpt_4096 = gptman::GPT::find_from(&mut f_4096)
     ///     .expect("could not read the partition table");
     /// ```
-    pub fn find_from<R: ?Sized>(mut reader: &mut R) -> Result<GPT>
+    pub fn find_from<R>(mut reader: &mut R) -> Result<GPT>
     where
-        R: Read + Seek,
+        R: Read + Seek + ?Sized,
     {
         use self::Error::*;
 
@@ -891,9 +891,9 @@ impl GPT {
     /// gpt.write_into(&mut cur)
     ///     .expect("could not write GPT to disk");
     /// ```
-    pub fn write_into<W: ?Sized>(&mut self, mut writer: &mut W) -> Result<GPTHeader>
+    pub fn write_into<W>(&mut self, mut writer: &mut W) -> Result<GPTHeader>
     where
-        W: Write + Seek,
+        W: Write + Seek + ?Sized,
     {
         self.check_partition_guids()?;
         self.check_partition_boundaries()?;
@@ -1238,9 +1238,9 @@ impl GPT {
     /// starting at byte 446 and ending at byte 511. Any existing data will be overwritten.
     ///
     /// See also: [`Self::write_bootable_protective_mbr_into`].
-    pub fn write_protective_mbr_into<W: ?Sized>(mut writer: &mut W, sector_size: u64) -> Result<()>
+    pub fn write_protective_mbr_into<W>(mut writer: &mut W, sector_size: u64) -> Result<()>
     where
-        W: Write + Seek,
+        W: Write + Seek + ?Sized,
     {
         Self::write_protective_mbr_into_impl(&mut writer, sector_size, false)
     }
@@ -1255,12 +1255,9 @@ impl GPT {
     /// <div class="warning">Some systems will not consider a disk to be bootable in UEFI mode
     /// if the pMBR is marked as bootable, so this should only be used if booting on legacy BIOS
     /// systems is a requirement.</div>
-    pub fn write_bootable_protective_mbr_into<W: ?Sized>(
-        mut writer: &mut W,
-        sector_size: u64,
-    ) -> Result<()>
+    pub fn write_bootable_protective_mbr_into<W>(mut writer: &mut W, sector_size: u64) -> Result<()>
     where
-        W: Write + Seek,
+        W: Write + Seek + ?Sized,
     {
         Self::write_protective_mbr_into_impl(&mut writer, sector_size, true)
     }
@@ -1289,11 +1286,11 @@ impl GPT {
         ])?;
         // number of sectors in partition 1
         encode_into_std_write(
-            &(if size > u64::from(u32::max_value()) {
-                u32::max_value()
+            if size > u64::from(u32::MAX) {
+                u32::MAX
             } else {
                 size as u32
-            }),
+            },
             &mut writer,
             legacy(),
         )?;
