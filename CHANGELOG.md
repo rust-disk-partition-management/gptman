@@ -1,6 +1,10 @@
 Changelog
 =========
 
+## v2.0.1
+
+- Fix underflow when input is shorter than one sector (#141)
+
 ## v2.0.0
 
 - Bump versions of bincode, thiserror nix
