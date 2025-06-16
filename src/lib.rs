@@ -729,6 +729,10 @@ impl GPT {
         reader.seek(SeekFrom::Start(sector_size))?;
         let header = GPTHeader::read_from(&mut reader).or_else(|primary_err| {
             let len = reader.seek(SeekFrom::End(0))?;
+            if len < sector_size {
+                return Err(InvalidSignature);
+            }
+
             reader.seek(SeekFrom::Start((len / sector_size - 1) * sector_size))?;
 
             GPTHeader::read_from(&mut reader).map_err(|backup_err| {
@@ -1425,6 +1429,15 @@ mod test {
         assert!(GPT::read_from(&mut fs::File::open(DISK2).unwrap(), 4096).is_ok());
         assert!(GPT::find_from(&mut fs::File::open(DISK1).unwrap()).is_ok());
         assert!(GPT::find_from(&mut fs::File::open(DISK2).unwrap()).is_ok());
+    }
+
+    #[test]
+    fn input_too_short() {
+        let mut empty = io::Cursor::new(vec![1; 5]);
+        assert!(matches!(
+            GPT::read_from(&mut empty, 512).expect_err("Should fail on short input"),
+            Error::InvalidSignature
+        ));
     }
 
     #[test]
