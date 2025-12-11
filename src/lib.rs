@@ -378,24 +378,37 @@ impl GPTHeader {
 
 /// A wrapper type for `String` that represents a partition's name.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PartitionName(String);
+pub struct PartitionName {
+    string: String,
+    raw_buf: [u16; 36],
+}
 
 impl PartitionName {
     /// Extracts a string slice containing the entire `PartitionName`.
     pub fn as_str(&self) -> &str {
-        self.0.as_str()
+        &self.string
     }
 }
 
 impl std::fmt::Display for PartitionName {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
+        write!(f, "{}", &self.string)
     }
 }
 
 impl From<&str> for PartitionName {
     fn from(value: &str) -> PartitionName {
-        PartitionName(value.to_string())
+        let utf16_converted: Vec<_> = value
+            .encode_utf16()
+            .chain([0].into_iter().cycle())
+            .take(36)
+            .collect();
+        let mut raw_buf = [0; 36];
+        raw_buf.copy_from_slice(&utf16_converted);
+        PartitionName {
+            string: value.to_string(),
+            raw_buf,
+        }
     }
 }
 
@@ -412,18 +425,25 @@ impl<'de> Visitor<'de> for UTF16LEVisitor {
     where
         A: SeqAccess<'de>,
     {
-        let mut v = Vec::new();
+        let mut v: Vec<u16> = Vec::new();
+        let mut raw_buf = [0; 36];
         let mut end = false;
-        loop {
-            match seq.next_element()? {
-                Some(0) => end = true,
-                Some(x) if !end => v.push(x),
-                Some(_) => {}
-                None => break,
+        let mut iter = raw_buf.iter_mut();
+        while let Some(x) = seq.next_element()? {
+            if let Some(element) = iter.next() {
+                if x == 0 {
+                    end = true;
+                }
+                if !end {
+                    v.push(x);
+                }
+                *element = x;
             }
         }
-
-        Ok(PartitionName(String::from_utf16_lossy(&v)))
+        Ok(PartitionName {
+            string: String::from_utf16_lossy(&v),
+            raw_buf,
+        })
     }
 }
 
@@ -441,10 +461,10 @@ impl Serialize for PartitionName {
     where
         S: Serializer,
     {
-        let s = self.0.encode_utf16();
+        // Favor using the content in the raw buffer in case there is garbage left (used for the CRC)
         let mut seq = serializer.serialize_tuple(36)?;
-        for x in s.chain([0].iter().cycle().cloned()).take(36) {
-            seq.serialize_element(&x)?;
+        for x in self.raw_buf {
+            seq.serialize_element(&x.to_le_bytes())?;
         }
         seq.end()
     }
