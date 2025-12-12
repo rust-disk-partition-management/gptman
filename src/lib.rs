@@ -1367,6 +1367,8 @@ mod test {
 
     const DISK1: &str = "tests/fixtures/disk1.img";
     const DISK2: &str = "tests/fixtures/disk2.img";
+    const DISK3: &str = "tests/fixtures/disk3.img";
+    const DISK4: &str = "tests/fixtures/disk4.img";
 
     #[test]
     fn read_header_and_partition_entries() {
@@ -1923,6 +1925,28 @@ mod test {
 
         test(DISK1, 512);
         test(DISK2, 4096);
+    }
+
+    #[test]
+    fn read_label_with_trailing_garbage_in_names() {
+        fn test(path: &str, ss: u64) {
+            let mut f = fs::File::open(path).unwrap();
+            let gpt = GPT::read_from(&mut f, ss);
+            // CRC check passes with trailing garbage within partition names
+            assert!(gpt.is_ok());
+            // Trailing garbage data are visible using hexdump
+            assert_eq!(
+                gpt.unwrap()
+                    .partitions
+                    .get(1)
+                    .unwrap()
+                    .partition_name
+                    .as_str(),
+                "Name with garbage"
+            );
+        }
+        test(DISK3, 512);
+        test(DISK4, 4096);
     }
 }
 
