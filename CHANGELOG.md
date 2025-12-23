@@ -1,6 +1,10 @@
 Changelog
 =========
 
+## v2.0.2
+
+- Properly perform checksums on partition table arrays when partition names contains garbage data after the null terminator (#142)
+
 ## v2.0.1
 
 - Fix underflow when input is shorter than one sector (#141)
