@@ -1,6 +1,11 @@
 Changelog
 =========
 
+## unreleased
+
+- replace unmaintained `bincode` dependency with `wincode`
+- remove `serde` dependency
+
 ## v2.0.2
 
 - Properly perform checksums on partition table arrays when partition names contains garbage data after the null terminator (#142)
