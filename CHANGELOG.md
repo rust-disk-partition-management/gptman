@@ -1,10 +1,10 @@
 Changelog
 =========
 
-## unreleased
+## v3.0.0
 
-- replace unmaintained `bincode` dependency with `wincode`
-- remove `serde` dependency
+- Replace unmaintained `bincode` dependency with `wincode` (#144)
+- Remove `serde` dependency (#144)
 
 ## v2.0.2
 
