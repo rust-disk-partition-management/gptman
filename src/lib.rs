@@ -272,6 +272,36 @@ impl GPTHeader {
         Ok(gpt)
     }
 
+    /// Read and validate the partition entry array that belongs to this header.
+    ///
+    /// Seeks to each partition entry using `partition_entry_lba` and `sector_size`, reads all
+    /// entries, then verifies `partition_entry_array_crc32`.
+    pub fn read_partitions<R>(
+        &self,
+        reader: &mut R,
+        sector_size: u64,
+    ) -> Result<Vec<GPTPartitionEntry>>
+    where
+        R: Read + Seek + ?Sized,
+    {
+        let mut partitions = Vec::with_capacity(self.number_of_partition_entries as usize);
+        for i in 0..self.number_of_partition_entries {
+            reader.seek(SeekFrom::Start(
+                self.partition_entry_lba * sector_size
+                    + u64::from(i) * u64::from(self.size_of_partition_entry),
+            ))?;
+            partitions.push(GPTPartitionEntry::read_from(reader)?);
+        }
+        let sum = self.generate_partition_entry_array_crc32(&partitions);
+        if self.partition_entry_array_crc32 != sum {
+            return Err(Error::InvalidPartitionEntryArrayChecksum(
+                self.partition_entry_array_crc32,
+                sum,
+            ));
+        }
+        Ok(partitions)
+    }
+
     /// Write the GPT header into a writer. This operation will update the CRC32 checksums of the
     /// current struct and seek at the location `primary_lba` before trying to write to disk.
     pub fn write_into<W>(
@@ -745,8 +775,14 @@ impl GPT {
     {
         use self::Error::*;
 
-        reader.seek(SeekFrom::Start(sector_size))?;
-        let header = GPTHeader::read_from(&mut reader).or_else(|primary_err| {
+        let primary: Result<(GPTHeader, Vec<GPTPartitionEntry>)> = (|| {
+            reader.seek(SeekFrom::Start(sector_size))?;
+            let header = GPTHeader::read_from(&mut reader)?;
+            let partitions = header.read_partitions(&mut reader, sector_size)?;
+            Ok((header, partitions))
+        })();
+
+        let (header, partitions) = primary.or_else(|primary_err| {
             let len = reader.seek(SeekFrom::End(0))?;
             if len < sector_size {
                 return Err(InvalidSignature);
@@ -754,30 +790,16 @@ impl GPT {
 
             reader.seek(SeekFrom::Start((len / sector_size - 1) * sector_size))?;
 
-            GPTHeader::read_from(&mut reader).map_err(|backup_err| {
-                match (primary_err, backup_err) {
+            GPTHeader::read_from(&mut reader)
+                .and_then(|header| {
+                    let partitions = header.read_partitions(&mut reader, sector_size)?;
+                    Ok((header, partitions))
+                })
+                .map_err(|backup_err| match (primary_err, backup_err) {
                     (InvalidSignature, InvalidSignature) => InvalidSignature,
-                    (x, y) => Error::ReadError(Box::new(x), Box::new(y)),
-                }
-            })
+                    (x, y) => ReadError(Box::new(x), Box::new(y)),
+                })
         })?;
-
-        let mut partitions = Vec::with_capacity(header.number_of_partition_entries as usize);
-        for i in 0..header.number_of_partition_entries {
-            reader.seek(SeekFrom::Start(
-                header.partition_entry_lba * sector_size
-                    + u64::from(i) * u64::from(header.size_of_partition_entry),
-            ))?;
-            partitions.push(GPTPartitionEntry::read_from(&mut reader)?);
-        }
-
-        let sum = header.generate_partition_entry_array_crc32(&partitions);
-        if header.partition_entry_array_crc32 != sum {
-            return Err(Error::InvalidPartitionEntryArrayChecksum(
-                header.partition_entry_array_crc32,
-                sum,
-            ));
-        }
 
         let align = GPT::find_alignment(&header, &partitions);
 
@@ -1072,8 +1094,7 @@ impl GPT {
     pub fn find_last_place(&self, size: u64) -> Option<u64> {
         self.find_free_sectors()
             .iter()
-            .filter(|(_, l)| *l >= size)
-            .last()
+            .rfind(|(_, l)| *l >= size)
             .map(|(i, l)| (i + l - size) / self.align * self.align)
     }
 
@@ -1365,6 +1386,7 @@ mod test {
     const DISK2: &str = "tests/fixtures/disk2.img";
     const DISK3: &str = "tests/fixtures/disk3.img";
     const DISK4: &str = "tests/fixtures/disk4.img";
+    const DISK5: &str = "tests/fixtures/disk5.img";
 
     #[test]
     fn read_header_and_partition_entries() {
@@ -1943,6 +1965,22 @@ mod test {
         }
         test(DISK3, 512);
         test(DISK4, 4096);
+    }
+
+    #[test]
+    fn gpt_read_from_on_image_with_corrupted_partition_entry_array_crc32_in_primary() {
+        let mut f = fs::File::open(DISK5).unwrap();
+        let gpt = GPT::read_from(&mut f, 512).unwrap();
+        // Verify that the backup header was actually used, not the primary.
+        // In a backup header, primary_lba points to the backup's own location
+        // (last sector) and backup_lba points back to 1 (the primary's location).
+        let end = f.seek(SeekFrom::End(0)).unwrap() / 512 - 1;
+        assert_eq!(gpt.header.primary_lba, end);
+        assert_eq!(gpt.header.backup_lba, 1);
+        assert_eq!(
+            gpt.header.partition_entry_lba,
+            gpt.header.last_usable_lba + 1
+        );
     }
 }
 
