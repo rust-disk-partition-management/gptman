@@ -90,11 +90,14 @@ const MAX_ALIGN: u64 = 16384;
 #[derive(Debug, Error)]
 #[non_exhaustive]
 pub enum Error {
-    /// Derialization errors.
+    /// Deserialization errors.
     #[error("deserialization failed")]
     Deserialize(#[from] ReadError),
     /// Serialization errors.
-    #[error("seserialization failed")]
+    ///
+    /// Note: this variant name has a historical typo and is kept for API compatibility.
+    // TODO: Rename to `Serialize` in the next semver-major release.
+    #[error("serialization failed")]
     Seserialize(#[from] WriteError),
     /// I/O errors.
     #[error("generic I/O error")]
@@ -118,7 +121,7 @@ pub enum Error {
     /// the expected checksum for the actual partition entries array.
     #[error("corrupted partition entry array CRC32 checksum ({0} != {1})")]
     InvalidPartitionEntryArrayChecksum(u32, u32),
-    /// An error that occurs when reading a GPT from a file did not succeeded.
+    /// An error that occurs when reading a GPT from a file did not succeed.
     ///
     /// The first argument is the error that occurred when trying to read the primary header.
     /// The second argument is the error that occurred when trying to read the backup header.
