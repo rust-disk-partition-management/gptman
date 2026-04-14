@@ -1,6 +1,11 @@
 Changelog
 =========
 
+## v3.1.0 (2026-04-14)
+
+- Fix fallback to backup GPT header when primary partition entry array CRC fails (#145)
+- Add `GPTHeader::read_partitions` to read and validate the partition entry array for a given header (#145)
+
 ## v3.0.0
 
 - Replace unmaintained `bincode` dependency with `wincode` (#144)
