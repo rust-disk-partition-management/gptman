@@ -42,6 +42,19 @@ Cargo.toml:
 gptman = "3"
 ```
 
+Feature Flags
+-------------
+
+| Feature | Default | Description |
+|---------|---------|-------------|
+| `nix` | enabled | Linux-only. Uses ioctl to auto-detect sector size from a block device and to ask the kernel to re-read the partition table after writing. Disable if you are cross-compiling for Linux from a non-Linux host or if you do not need block device support. |
+
+To disable default features:
+```toml
+[dependencies]
+gptman = { version = "3", default-features = false }
+```
+
 Usage
 -----
 
