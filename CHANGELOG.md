@@ -1,6 +1,15 @@
 Changelog
 =========
 
+## v3.1.1 (2026-04-28)
+
+- Add release workflow with OIDC trusted publishing
+- Add CONTRIBUTING.md
+- Document `nix` feature flag in README
+- Use README as crate-level documentation via `include_str!`
+- Add dates to all changelog entries
+- Replace broken LOC badge with CHANGELOG badge
+
 ## v3.1.0 (2026-04-14)
 
 - Fix fallback to backup GPT header when primary partition entry array CRC fails (#145)
