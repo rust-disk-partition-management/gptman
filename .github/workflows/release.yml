@@ -11,4 +11,9 @@ jobs:
       id-token: write  # required for OIDC trusted publishing
     steps:
       - uses: actions/checkout@v4
+      - name: Authenticate with crates.io
+        id: auth
+        uses: rust-lang/crates-io-auth-action@v1
       - run: cargo publish
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
