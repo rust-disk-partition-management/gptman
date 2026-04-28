@@ -26,4 +26,4 @@ wincode = { version = "0.2.5", features = ["derive"] }
 default = [ "nix" ]
 
 [target.'cfg(target_os = "linux")'.dependencies]
-nix = { version = "0.30", default-features = false, features = ["ioctl"], optional = true }
+nix = { version = "0.31", default-features = false, features = ["ioctl"], optional = true }
