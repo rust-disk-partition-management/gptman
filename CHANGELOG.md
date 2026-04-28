@@ -6,56 +6,56 @@ Changelog
 - Fix fallback to backup GPT header when primary partition entry array CRC fails (#145)
 - Add `GPTHeader::read_partitions` to read and validate the partition entry array for a given header (#145)
 
-## v3.0.0
+## v3.0.0 (2026-01-19)
 
 - Replace unmaintained `bincode` dependency with `wincode` (#144)
 - Remove `serde` dependency (#144)
 
-## v2.0.2
+## v2.0.2 (2025-12-23)
 
 - Properly perform checksums on partition table arrays when partition names contains garbage data after the null terminator (#142)
 
-## v2.0.1
+## v2.0.1 (2025-06-16)
 
 - Fix underflow when input is shorter than one sector (#141)
 
-## v2.0.0
+## v2.0.0 (2025-05-14)
 
 - Bump versions of bincode, thiserror nix
 
-## v1.1.4
+## v1.1.4 (2025-02-12)
 
 - Fix get sector size on mips64 (#138)
 
-## v1.1.3
+## v1.1.3 (2025-02-11)
 
 - Document that pmbr shouldn't be used unless needed (#136)
 - Update library MSRV to 1.65 because of crc 3.2.1 (#139)
 
-## v1.1.2
+## v1.1.2 (2024-02-12)
 
 - Remove leftover Cargo.lock file
 - Allow a wider version range for nix (up to 0.27) (#135)
 
-## v1.1.1
+## v1.1.1 (2024-02-07)
 
 - [CLI] Remove CLI (#127)
 
-## v1.1.0
+## v1.1.0 (2024-01-15)
 
 - Add function write_bootable_protective_mbr_into (#132)
 - [CLI] Update MSRV to 1.70 for clap 4.4
 
-## v1.0.2
+## v1.0.2 (2023-08-21)
 
 - Update library MSRV to 1.63 and edition to 2021 (#120)
 - Turn off nix's default features (#123)
 
-## v1.0.1
+## v1.0.1 (2023-07-22)
 
 - Allow a wider version range for nix (#116)
 
-## v1.0.0
+## v1.0.0 (2022-06-04)
 
 - [BREAKING] Disable `cli` feature by default (#81)
 - [BREAKING] Make `Error` type `non_exhaustive` so the API can be stabilized better (#94)
@@ -66,43 +66,43 @@ Changelog
 - Update repository URL (#82)
 - Update dependencies
 
-## v0.8.4
+## v0.8.4 (2022-05-10)
 
 - Add GPTPartitionEntry::range and GPT::get_partition_byte_range (#76)
 
-## v0.8.3
+## v0.8.3 (2021-12-10)
 
 - Remove count-zeroes from library's dependency (only used by CLI)
 - Fix licensing missing author and date
 
-## v0.8.2
+## v0.8.2 (2021-11-07)
 
 - Change release build to provide MUSL build for Linux by default
 - Add download script on http://gptman.cecton.com
 - [CLI] Add feature to check a partition for zeroes (useful to check if you accidentally trimmed it)
 
-## v0.8.1
+## v0.8.1 (2021-11-07)
 
 - Fix some rustc and clippy warnings (does **not** break API of gptman's lib)
 - Update dependencies: crc from 1.0.0 to 2.0.0 and nix from 0.18 to 0.22
 - Fix spacing in doc
 - [CLI] Fix invalid maximum size calculation in `resize` command
 
-## v0.8.0
+## v0.8.0 (2021-03-13)
 
 - [BREAKING] Switch to `thiserror`: it is possible that the type `Error` has changed a tad bit because of this change. I did not investigated so I considered this a breaking change.
 - Update all dependencies (most notable: rand from version 0.7 to version 0.8)
 
-## v0.7.3
+## v0.7.3 (2020-12-23)
 
 - Update license badge
 - Include test fixtures in packaged crate
 
-## v0.7.2 (yanked)
+## v0.7.2 (2020-12-12) (yanked)
 
 - [CLI] Automatic binary release on GitHub
 
-## v0.7.1 (yanked)
+## v0.7.1 (2020-12-12) (yanked)
 
 - Remove rustfmt and clippy checks for branch master and tags
 - Clippy fixes
@@ -111,7 +111,7 @@ Changelog
 - Add FUNDING.yml
 - Change license to MIT OR Apache-2.0
 
-## v0.7.0
+## v0.7.0 (2020-08-11)
 
 - The dependencies have been upgraded to the latest
 - [BREAKING] A typo in the API has been fixed `gptman::GPTPartitionEntry::unique_parition_guid` is now `gptman::GPTPartitionEntry::unique_partition_guid`
@@ -125,34 +125,34 @@ Changelog
 - New helpers: `is_primary`, `is_backup`
 - [BREAKING] `write_into` does not update the GPT's first/last LBAs according to disk anymore
 
-## v0.6.5
+## v0.6.5 (2020-07-20)
 
 - Bump version of serde
 
-## v0.6.4
+## v0.6.4 (2020-07-20)
 
 - Exclude tool metadata from crate
 - Bump versions of serde, structopt, unicode-width, bincode
 
-## v0.6.3
+## v0.6.3 (2020-05-16)
 
 - Update dependencies
 - Fix path for NVMe disks in the table in the CLI
 - Fix wrong command description
 
-## v0.6.2
+## v0.6.2 (2020-03-08)
 
 - Bump version of dependencies
 
-## v0.6.1
+## v0.6.1 (2020-01-04)
 
 - [CLI] Correct path for disks on NVMe disks
 
-## v0.6.0
+## v0.6.0 (2020-01-03)
 
 - Bump version of dependencies
 
-## v0.5.0
+## v0.5.0 (2019-07-14)
 
 - Added ioctls to the library for Linux.
 - Updated dependencies
@@ -162,7 +162,7 @@ Changelog
 - Impl Error for gptman::Error
 - Fixed wrong Error type in the API
 
-## v0.4.0
+## v0.4.0 (2019-07-14)
 
 - Added ioctls to the library for Linux.
 - Updated dependencies
@@ -171,14 +171,14 @@ Changelog
 - Fixed: check partition index to be in range (CLI)
 - Impl Error for gptman::Error
 
-## v0.3.0
+## v0.3.0 (2019-05-01)
 
 - Allow the user to give size and starting LBA in bytes (#2)
 
-## v0.2.0
+## v0.2.0 (2019-01-10)
 
 - Reorganize: make a library, add documentation... (#1)
 
-## v0.1.0
+## v0.1.0 (2019-01-07)
 
 Initial release
