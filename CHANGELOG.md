@@ -1,6 +1,13 @@
 Changelog
 =========
 
+## Unreleased
+
+- Fix `GPT::write_into` possibly leaving the disk with no valid partition table if the write is interrupted: the copy of the GPT that was not read is now written first and the writer is flushed after each copy (#137)
+- Add `GPT::write_into_file` to write to a `std::fs::File` and call `sync_data()` after each copy (#137)
+- Add `GPT::write_into_with_barrier` to write to any writer with a custom durability barrier (#137)
+- Write whole sectors only: the partition entry array is written in a single write and the reserved bytes that follow the GPT header in its sector are now zeroed, as required by UEFI (#137)
+
 ## v3.1.1 (2026-04-28)
 
 - Add release workflow with OIDC trusted publishing

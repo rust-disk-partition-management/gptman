@@ -238,9 +238,18 @@ impl GPTHeader {
 
     /// Write the GPT header into a writer. This operation will update the CRC32 checksums of the
     /// current struct and seek at the location `primary_lba` before trying to write to disk.
+    ///
+    /// # Implementation notes
+    ///
+    /// Only whole sectors are written: the partition entry array first (in a single write), then
+    /// the sector of the header. The bytes that follow the header in its sector and the ones that
+    /// follow the partition entry array in its last sector are reserved by UEFI and are zeroed.
+    ///
+    /// This function writes only one copy of the GPT and does not flush the writer. See
+    /// [`GPT::write_into`] to write both copies in a way that survives an interruption.
     pub fn write_into<W>(
         &mut self,
-        mut writer: &mut W,
+        writer: &mut W,
         sector_size: u64,
         partitions: &[GPTPartitionEntry],
     ) -> Result<()>
@@ -250,18 +259,39 @@ impl GPTHeader {
         self.update_partition_entry_array_crc32(partitions);
         self.update_crc32_checksum();
 
-        writer.seek(SeekFrom::Start(self.primary_lba * sector_size))?;
-        encode_into_std_write(self, &mut writer)?;
-
-        for i in 0..self.number_of_partition_entries {
-            writer.seek(SeekFrom::Start(
-                self.partition_entry_lba * sector_size
-                    + u64::from(i) * u64::from(self.size_of_partition_entry),
-            ))?;
-            encode_into_std_write(&partitions[i as usize], &mut writer)?;
+        for (offset, data) in self.chunks(sector_size, partitions)? {
+            writer.seek(SeekFrom::Start(offset))?;
+            writer.write_all(&data)?;
         }
 
         Ok(())
+    }
+
+    // Returns the data to write for this copy of the GPT as (offset in bytes, data), in the order
+    // it must be written: the partition entry array first, the header last. A copy is valid only
+    // once its header matches its partition entry array, so the header is what commits it.
+    fn chunks(
+        &self,
+        sector_size: u64,
+        partitions: &[GPTPartitionEntry],
+    ) -> Result<[(u64, Vec<u8>); 2]> {
+        let sector_size_bytes = sector_size as usize;
+
+        let mut entries = Vec::with_capacity(
+            self.number_of_partition_entries as usize * self.size_of_partition_entry as usize,
+        );
+        for partition in &partitions[..self.number_of_partition_entries as usize] {
+            entries.extend(wincode::serialize(partition)?);
+        }
+        entries.resize(entries.len().next_multiple_of(sector_size_bytes), 0);
+
+        let mut header = wincode::serialize(self)?;
+        header.resize(sector_size_bytes, 0);
+
+        Ok([
+            (self.partition_entry_lba * sector_size, entries),
+            (self.primary_lba * sector_size, header),
+        ])
     }
 
     /// Generate the CRC32 checksum of the partition header only.
@@ -847,6 +877,20 @@ impl GPT {
     ///
     /// Note that the checksums are re-calculated, thus updating the header.
     ///
+    /// # Durability
+    ///
+    /// The copy of the GPT that was not read (the backup one, most of the time) is written first,
+    /// then [`Write::flush`] is called on the writer, then the other copy is written and
+    /// [`Write::flush`] is called again. An interrupted write leaves at least one valid copy on
+    /// the disk, provided that flushing the writer makes everything that has been written so far
+    /// durable.
+    ///
+    /// <div class="warning">This is not the case of <code>std::fs::File</code>: its
+    /// <code>flush</code> does nothing. If the system crashes or loses power while writing to a
+    /// bare <code>File</code>, both copies can be partially written and the disk is left with no
+    /// valid partition table. Use <a href="#method.write_into_file"><code>write_into_file</code>
+    /// </a> to write to a file or to a block device.</div>
+    ///
     /// # Errors
     ///
     /// The partitions will be checked for consistency before being wrote to disk:
@@ -870,9 +914,88 @@ impl GPT {
     /// gpt.write_into(&mut cur)
     ///     .expect("could not write GPT to disk");
     /// ```
-    pub fn write_into<W>(&mut self, mut writer: &mut W) -> Result<GPTHeader>
+    pub fn write_into<W>(&mut self, writer: &mut W) -> Result<GPTHeader>
     where
         W: Write + Seek + ?Sized,
+    {
+        self.write_into_with_barrier(writer, |writer| writer.flush())
+    }
+
+    /// Write the GPT to a file or to a block device. This function does the same as
+    /// [`Self::write_into`] but calls [`std::fs::File::sync_data`] after each copy of the GPT has
+    /// been written, so the first copy is on the disk before the second one is touched.
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    /// ```
+    /// # let path = std::env::temp_dir().join("gptman-doctest-write_into_file.img");
+    /// let ss = 512;
+    /// let mut f = std::fs::OpenOptions::new()
+    ///     .read(true)
+    ///     .write(true)
+    /// #   .create(true)
+    /// #   .truncate(true)
+    ///     .open(&path)
+    ///     .expect("could not open disk");
+    /// # f.set_len(100 * ss).unwrap();
+    /// let mut gpt = gptman::GPT::new_from(&mut f, ss, [0xff; 16])
+    ///     .expect("could not make a partition table");
+    ///
+    /// gpt.write_into_file(&mut f)
+    ///     .expect("could not write GPT to disk");
+    /// # drop(f);
+    /// # std::fs::remove_file(&path).unwrap();
+    /// ```
+    pub fn write_into_file(&mut self, file: &mut std::fs::File) -> Result<GPTHeader> {
+        self.write_into_with_barrier(file, |file| file.sync_data())
+    }
+
+    /// Write the GPT to a writer, like [`Self::write_into`], but let the caller decide how the
+    /// writes are made durable. This is the function to use if neither [`Self::write_into`] nor
+    /// [`Self::write_into_file`] do what your writer or your operating system needs.
+    ///
+    /// `barrier` is called exactly twice with the writer in argument: once after the first copy
+    /// of the GPT has been entirely written, and once after the second copy has been entirely
+    /// written. It must return only when everything that has been written so far is durable. If
+    /// it returns an error, the write is aborted and the error is returned.
+    ///
+    /// The copy of the GPT that was not read (the backup one, most of the time) is written first,
+    /// so the copy that is known to be valid stays untouched until the barrier has been passed.
+    ///
+    /// <div class="warning">The <code>flush</code> of <code>std::fs::File</code> does nothing,
+    /// it cannot be used as a barrier. Use <code>sync_data</code> or <code>sync_all</code>.</div>
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    /// ```
+    /// # let path = std::env::temp_dir().join("gptman-doctest-write_into_with_barrier.img");
+    /// let ss = 512;
+    /// let mut f = std::fs::OpenOptions::new()
+    ///     .read(true)
+    ///     .write(true)
+    /// #   .create(true)
+    /// #   .truncate(true)
+    ///     .open(&path)
+    ///     .expect("could not open disk");
+    /// # f.set_len(100 * ss).unwrap();
+    /// let mut gpt = gptman::GPT::new_from(&mut f, ss, [0xff; 16])
+    ///     .expect("could not make a partition table");
+    ///
+    /// gpt.write_into_with_barrier(&mut f, |f| f.sync_all())
+    ///     .expect("could not write GPT to disk");
+    /// # drop(f);
+    /// # std::fs::remove_file(&path).unwrap();
+    /// ```
+    pub fn write_into_with_barrier<W, F>(
+        &mut self,
+        mut writer: &mut W,
+        mut barrier: F,
+    ) -> Result<GPTHeader>
+    where
+        W: Write + Seek + ?Sized,
+        F: FnMut(&mut W) -> io::Result<()>,
     {
         self.check_partition_guids()?;
         self.check_partition_boundaries()?;
@@ -886,9 +1009,14 @@ impl GPT {
             2
         };
 
+        // NOTE: the copy that has been read is known to be valid, the other one has never been
+        //       checked. The latter is written first so there is always a valid copy on the disk
+        //       if the write is interrupted.
+        backup.write_into(&mut writer, self.sector_size, &self.partitions)?;
+        barrier(writer)?;
         self.header
             .write_into(&mut writer, self.sector_size, &self.partitions)?;
-        backup.write_into(&mut writer, self.sector_size, &self.partitions)?;
+        barrier(writer)?;
 
         Ok(backup)
     }
@@ -1687,6 +1815,206 @@ mod test {
             let mut gpt = GPT::read_from(&mut cur, ss).unwrap();
             gpt.write_into(&mut cur).unwrap();
         }
+        test(DISK1, 512);
+        test(DISK2, 4096);
+    }
+
+    #[derive(Debug, PartialEq, Eq)]
+    enum Op {
+        Write(u64, Vec<u8>),
+        Flush,
+    }
+
+    struct Recorder {
+        cur: io::Cursor<Vec<u8>>,
+        ops: Vec<Op>,
+    }
+
+    impl Recorder {
+        fn new(data: Vec<u8>) -> Recorder {
+            Recorder {
+                cur: io::Cursor::new(data),
+                ops: Vec::new(),
+            }
+        }
+    }
+
+    impl Write for Recorder {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            let offset = self.cur.position();
+            let n = self.cur.write(buf)?;
+            self.ops.push(Op::Write(offset, buf[..n].to_vec()));
+            Ok(n)
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            self.ops.push(Op::Flush);
+            Ok(())
+        }
+    }
+
+    impl Seek for Recorder {
+        fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
+            self.cur.seek(pos)
+        }
+    }
+
+    #[test]
+    fn write_whole_sectors_and_flush_after_each_copy() {
+        fn test(path: &str, ss: u64) {
+            let mut rec = Recorder::new(fs::read(path).unwrap());
+            let mut gpt = GPT::read_from(&mut rec.cur, ss).unwrap();
+            assert!(gpt.is_primary());
+            let backup = gpt.write_into(&mut rec).unwrap();
+
+            let offsets = rec
+                .ops
+                .iter()
+                .map(|op| match op {
+                    Op::Write(offset, data) => {
+                        assert_eq!(offset % ss, 0);
+                        assert_eq!(data.len() as u64 % ss, 0);
+                        Some(*offset)
+                    }
+                    Op::Flush => None,
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(
+                offsets,
+                vec![
+                    Some(backup.partition_entry_lba * ss),
+                    Some(backup.primary_lba * ss),
+                    None,
+                    Some(gpt.header.partition_entry_lba * ss),
+                    Some(gpt.header.primary_lba * ss),
+                    None,
+                ]
+            );
+        }
+
+        test(DISK1, 512);
+        test(DISK2, 4096);
+    }
+
+    #[test]
+    fn write_interrupted_leaves_a_valid_copy() {
+        fn test(path: &str, ss: u64, corrupt_backup: bool) {
+            let mut data = fs::read(path).unwrap();
+            if corrupt_backup {
+                // the backup copy is not checked when the primary copy can be read
+                let offset = data.len() - ss as usize;
+                data[offset] = 0;
+            }
+            let mut rec = Recorder::new(data.clone());
+            let mut gpt = GPT::read_from(&mut rec.cur, ss).unwrap();
+            assert!(gpt.is_primary());
+            let name = gpt[1].partition_name.to_string();
+            gpt[1].partition_name = "Bar".into();
+            gpt.write_into(&mut rec).unwrap();
+
+            let mut copies = Vec::new();
+            for op in rec.ops.iter() {
+                if let Op::Write(offset, buf) = op {
+                    let offset = *offset as usize;
+                    data[offset..offset + buf.len()].copy_from_slice(buf);
+                }
+                let gpt = GPT::read_from(&mut io::Cursor::new(&data), ss).unwrap();
+                copies.push((gpt.is_primary(), gpt[1].partition_name.to_string()));
+            }
+            assert_eq!(copies.first().unwrap(), &(true, name));
+            assert_eq!(copies.last().unwrap(), &(true, "Bar".to_string()));
+        }
+
+        test(DISK1, 512, false);
+        test(DISK1, 512, true);
+        test(DISK2, 4096, false);
+        test(DISK2, 4096, true);
+    }
+
+    #[test]
+    fn write_zeroes_reserved_bytes() {
+        fn test(path: &str, ss: u64) {
+            let len = fs::read(path).unwrap().len();
+            let mut cur = io::Cursor::new(vec![0xff; len]);
+            let mut gpt = GPT::read_from(&mut fs::File::open(path).unwrap(), ss).unwrap();
+            let backup = gpt.write_into(&mut cur).unwrap();
+
+            let data = cur.into_inner();
+            for header in [&gpt.header, &backup] {
+                let start = (header.primary_lba * ss) as usize;
+                assert_eq!(&data[start..start + 8], b"EFI PART");
+                assert!(data[start + 92..start + ss as usize]
+                    .iter()
+                    .all(|x| *x == 0));
+            }
+        }
+
+        test(DISK1, 512);
+        test(DISK2, 4096);
+    }
+
+    #[test]
+    fn write_with_barrier() {
+        fn test(path: &str, ss: u64) {
+            let mut rec = Recorder::new(fs::read(path).unwrap());
+            let mut gpt = GPT::read_from(&mut rec.cur, ss).unwrap();
+
+            // the barrier is called after each copy has been written, the writer is not flushed
+            let mut writes = Vec::new();
+            gpt.write_into_with_barrier(&mut rec, |rec| {
+                writes.push(rec.ops.len());
+                Ok(())
+            })
+            .unwrap();
+            assert_eq!(writes, vec![2, 4]);
+            assert!(!rec.ops.contains(&Op::Flush));
+
+            // the copy that has been read is not touched if the first barrier fails
+            let mut rec = Recorder::new(fs::read(path).unwrap());
+            let err = gpt
+                .write_into_with_barrier(&mut rec, |_| Err(io::Error::other("barrier")))
+                .unwrap_err();
+            assert!(matches!(err, Error::Io(_)));
+            assert_eq!(rec.ops.len(), 2);
+            assert!(rec
+                .ops
+                .iter()
+                .all(|op| matches!(op, Op::Write(offset, _) if *offset > 2 * ss)));
+        }
+
+        test(DISK1, 512);
+        test(DISK2, 4096);
+    }
+
+    #[test]
+    fn write_into_file() {
+        fn test(path: &str, ss: u64) {
+            let tmp = std::env::temp_dir().join(format!(
+                "gptman-test-write_into_file-{}-{}.img",
+                std::process::id(),
+                ss
+            ));
+            fs::copy(path, &tmp).unwrap();
+            let mut f = fs::OpenOptions::new()
+                .read(true)
+                .write(true)
+                .open(&tmp)
+                .unwrap();
+            let mut gpt = GPT::read_from(&mut f, ss).unwrap();
+            gpt[1].partition_name = "Bar".into();
+            let backup = gpt.write_into_file(&mut f).unwrap();
+            drop(f);
+
+            let mut f = fs::File::open(&tmp).unwrap();
+            let primary = GPT::read_from(&mut f, ss).unwrap();
+            assert_eq!(primary, gpt);
+            f.seek(SeekFrom::Start(backup.primary_lba * ss)).unwrap();
+            assert_eq!(GPTHeader::read_from(&mut f).unwrap(), backup);
+            assert_eq!(backup.read_partitions(&mut f, ss).unwrap()[0], gpt[1]);
+            drop(f);
+            fs::remove_file(&tmp).unwrap();
+        }
+
         test(DISK1, 512);
         test(DISK2, 4096);
     }
