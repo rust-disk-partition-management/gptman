@@ -550,7 +550,7 @@ impl PartitionName {
 
 impl std::fmt::Display for PartitionName {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", &self.string)
+        write!(f, "{}", self.string)
     }
 }
 
@@ -1234,7 +1234,7 @@ impl GPT {
             .into_iter()
             .filter(|(_, l)| *l >= size)
             .collect::<Vec<_>>();
-        slots.sort_by(|(_, l1), (_, l2)| l1.cmp(l2));
+        slots.sort_by_key(|(_, l)| *l);
         slots.first().map(|&(i, _)| i)
     }
 
