@@ -6,57 +6,69 @@
 [![Changelog](https://img.shields.io/badge/changelog-CHANGELOG.md-blue)](CHANGELOG.md)
 [![Dependency Status](https://deps.rs/repo/github/rust-disk-partition-management/gptman/status.svg)](https://deps.rs/repo/github/rust-disk-partition-management/gptman)
 
-gptman
-======
+# gptman
 
 Pure Rust library to read and modify GUID partition tables.
 
-Things you can do
------------------
+## Things you can do
 
- *  Read/Write GPT from 512 and 4096 bytes sector size disks
- *  Create a new GPT on a disk
- *  Insert/delete a partition in the table
- *  Align partitions automatically (to sector size)
- *  Resize a partition
- *  Copy/clone a partition from one disk and insert it into another
- *  Change partition type
- *  Fix partitions order
- *  Change disk GUID
- *  Change partition name
- *  Change partition GUID
- *  Toggle legacy BIOS bootable
- *  Toggle no block IO protocol
- *  Toggle required partition flag
- *  Toggle attributes
- *  Swap partition indexes
- *  Copy/clone all partitions from one disk and insert it to another
- *  Write protective MBR
+- Read/Write GPT from 512 and 4096 bytes sector size disks
+- Create a new GPT on a disk
+- Insert/delete a partition in the table
+- Align partitions automatically (to sector size)
+- Resize a partition
+- Copy/clone a partition from one disk and insert it into another
+- Change partition type
+- Fix partitions order
+- Change disk GUID
+- Change partition name
+- Change partition GUID
+- Toggle legacy BIOS bootable
+- Toggle no block IO protocol
+- Toggle required partition flag
+- Toggle attributes
+- Swap partition indexes
+- Copy/clone all partitions from one disk and insert it to another
+- Write protective MBR
 
-Installation
-------------
+## Installation
 
 Cargo.toml:
+
 ```toml
 [dependencies]
 gptman = "3"
 ```
 
-Feature Flags
--------------
+## Feature Flags
 
-| Feature | Default | Description |
-|---------|---------|-------------|
-| `nix` | enabled | Linux-only. Uses ioctl to auto-detect sector size from a block device and to ask the kernel to re-read the partition table after writing. Disable if you are cross-compiling for Linux from a non-Linux host or if you do not need block device support. |
+| Feature | Default | Description                                                                                                                                                                                                                                              |
+| ------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `nix`   | enabled | Linux-only. Uses ioctl to auto-detect sector size from a block device and to ask the kernel to re-read the partition table after writing. Disable if you are cross-compiling for Linux from a non-Linux host or if you do not need block device support. |
 
 To disable default features:
+
 ```toml
 [dependencies]
 gptman = { version = "3", default-features = false }
 ```
 
-Usage
------
+## Dependencies
+
+gptman has no dependencies besides the optional `nix` feature: with `default-features = false`
+it builds from the standard library alone. The GPT structures are encoded and decoded by hand,
+the error types implement `Display` and `Error` by hand, and the two CRC-32 checksums the
+specification requires are computed by a small private module whose table is a single `const`
+in read-only data, so a checksum needs no stack and no heap.
+
+This is deliberate. A partition table gets written when a system is installed or an image is
+built, often by a small program on a machine nobody will look at again, and each crate in the
+graph is something to audit and something that can change underneath you. With the dependency
+list empty, no third-party release can raise the MSRV of that build or bring in code gptman
+does not use. The on-disk format is the one the UEFI specification defines, so a table gptman
+writes stays readable by other tools.
+
+## Usage
 
 Reading all the partitions of a disk:
 
