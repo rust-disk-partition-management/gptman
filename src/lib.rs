@@ -7,7 +7,6 @@ use std::collections::HashSet;
 use std::io;
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::ops::{Index, IndexMut, RangeInclusive};
-use thiserror::Error;
 
 /// Linux specific helpers
 #[cfg(all(target_os = "linux", feature = "nix"))]
@@ -51,84 +50,125 @@ fn write_u64(bytes: &mut [u8], offset: usize, value: u64) {
 }
 
 /// An error that can be produced while reading, writing or managing a GPT.
-#[derive(Debug, Error)]
+#[derive(Debug)]
 #[non_exhaustive]
 pub enum Error {
     /// I/O errors.
-    #[error("generic I/O error")]
-    Io(#[from] io::Error),
+    Io(io::Error),
     /// An error that occurs when the signature of the GPT isn't what would be expected ("EFI
     /// PART").
-    #[error("invalid signature")]
     InvalidSignature,
     /// An error that occurs when the revision of the GPT isn't what would be expected (00 00 01
     /// 00).
-    #[error("invalid revision")]
     InvalidRevision,
     /// An error that occurs when the header's size (in bytes) isn't what would be expected (92).
-    #[error("invalid header size")]
     InvalidHeaderSize,
     /// An error that occurs when the size (in bytes) of a partition entry isn't the one gptman
     /// supports (128).
-    #[error("invalid partition entry size: {0}")]
     InvalidPartitionEntrySize(u32),
     /// An error that occurs when the partition entry array is larger than gptman accepts.
     ///
     /// The argument is the size (in bytes) of the array described by the header.
-    #[error("partition entry array too large: {0} bytes")]
     InvalidPartitionEntryArraySize(u64),
     /// An error that occurs when the number of partition entries given does not match the number
     /// the header describes.
     ///
     /// The first argument is the number of entries given, the second the number of entries the
     /// header describes.
-    #[error("invalid number of partition entries ({0} != {1})")]
     InvalidPartitionEntryCount(u64, u64),
     /// An error that occurs when the CRC32 checksum of the header doesn't match the expected
     /// checksum for the actual header.
-    #[error("corrupted CRC32 checksum ({0} != {1})")]
     InvalidChecksum(u32, u32),
     /// An error that occurs when the CRC32 checksum of the partition entries array doesn't match
     /// the expected checksum for the actual partition entries array.
-    #[error("corrupted partition entry array CRC32 checksum ({0} != {1})")]
     InvalidPartitionEntryArrayChecksum(u32, u32),
     /// An error that occurs when reading a GPT from a file did not succeed.
     ///
     /// The first argument is the error that occurred when trying to read the primary header.
     /// The second argument is the error that occurred when trying to read the backup header.
-    #[error("could not read primary header ({0}) nor backup header ({1})")]
     ReadError(Box<Error>, Box<Error>),
     /// An error that occurs when there is not enough space left on the table to continue.
-    #[error("no space left")]
     NoSpaceLeft,
     /// An error that occurs when there are partitions with the same GUID in the same array.
-    #[error("conflict of partition GUIDs")]
     ConflictPartitionGUID,
     /// An error that occurs when a partition has an invalid boundary.
     ///
     /// The end sector must be greater or equal to the start sector of the partition.
     ///
     /// Partitions must fit within the disk and must not overlap.
-    #[error(
-        "invalid partition boundaries: partitions must have positive size, must not overlap, \
-        and must fit within the disk"
-    )]
     InvalidPartitionBoundaries,
     /// An error that occurs when the user provide an invalid partition number.
     ///
     /// The partition number must be between 1 and `number_of_partition_entries` (usually 128)
     /// included.
-    #[error("invalid partition number: {0}")]
     InvalidPartitionNumber(u32),
     /// An error that occurs when the user attempts to access information for an unused partition.
-    #[error("unused partition")]
     UnusedPartition,
     /// An operation that required to find a partition, was unable to find that partition.
-    #[error("partition not found")]
     PartitionNotFound,
     /// An arithmetic operation overflowed.
-    #[error("an arithmetic operation overflowed")]
     Overflow,
+}
+
+impl core::fmt::Display for Error {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Error::Io(_) => f.write_str("generic I/O error"),
+            Error::InvalidSignature => f.write_str("invalid signature"),
+            Error::InvalidRevision => f.write_str("invalid revision"),
+            Error::InvalidHeaderSize => f.write_str("invalid header size"),
+            Error::InvalidPartitionEntrySize(size) => {
+                write!(f, "invalid partition entry size: {size}")
+            }
+            Error::InvalidPartitionEntryArraySize(size) => {
+                write!(f, "partition entry array too large: {size} bytes")
+            }
+            Error::InvalidPartitionEntryCount(given, described) => {
+                write!(
+                    f,
+                    "invalid number of partition entries ({given} != {described})"
+                )
+            }
+            Error::InvalidChecksum(found, expected) => {
+                write!(f, "corrupted CRC32 checksum ({found} != {expected})")
+            }
+            Error::InvalidPartitionEntryArrayChecksum(found, expected) => write!(
+                f,
+                "corrupted partition entry array CRC32 checksum ({found} != {expected})"
+            ),
+            Error::ReadError(primary, backup) => write!(
+                f,
+                "could not read primary header ({primary}) nor backup header ({backup})"
+            ),
+            Error::NoSpaceLeft => f.write_str("no space left"),
+            Error::ConflictPartitionGUID => f.write_str("conflict of partition GUIDs"),
+            Error::InvalidPartitionBoundaries => f.write_str(
+                "invalid partition boundaries: partitions must have positive size, must not \
+                overlap, and must fit within the disk",
+            ),
+            Error::InvalidPartitionNumber(number) => {
+                write!(f, "invalid partition number: {number}")
+            }
+            Error::UnusedPartition => f.write_str("unused partition"),
+            Error::PartitionNotFound => f.write_str("partition not found"),
+            Error::Overflow => f.write_str("an arithmetic operation overflowed"),
+        }
+    }
+}
+
+impl core::error::Error for Error {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
+        match self {
+            Error::Io(err) => Some(err),
+            _ => None,
+        }
+    }
+}
+
+impl From<io::Error> for Error {
+    fn from(err: io::Error) -> Error {
+        Error::Io(err)
+    }
 }
 
 /// The result of reading, writing or managing a GPT.
@@ -1609,6 +1649,99 @@ mod test {
         assert_eq!(gpt.find_first_place(10000), None);
         assert_eq!(gpt.find_first_place(4), Some(44));
         assert_eq!(gpt.find_first_place(8), Some(53));
+    }
+
+    #[test]
+    fn error_messages() {
+        use std::error::Error as _;
+
+        let cases = [
+            (
+                Error::Io(io::ErrorKind::UnexpectedEof.into()),
+                "generic I/O error",
+            ),
+            (Error::InvalidSignature, "invalid signature"),
+            (Error::InvalidRevision, "invalid revision"),
+            (Error::InvalidHeaderSize, "invalid header size"),
+            (
+                Error::InvalidPartitionEntrySize(256),
+                "invalid partition entry size: 256",
+            ),
+            (
+                Error::InvalidPartitionEntryArraySize(134_217_728),
+                "partition entry array too large: 134217728 bytes",
+            ),
+            (
+                Error::InvalidPartitionEntryCount(127, 128),
+                "invalid number of partition entries (127 != 128)",
+            ),
+            (
+                Error::InvalidChecksum(1, 2),
+                "corrupted CRC32 checksum (1 != 2)",
+            ),
+            (
+                Error::InvalidPartitionEntryArrayChecksum(3, 4),
+                "corrupted partition entry array CRC32 checksum (3 != 4)",
+            ),
+            (
+                Error::ReadError(
+                    Box::new(Error::InvalidSignature),
+                    Box::new(Error::InvalidRevision),
+                ),
+                "could not read primary header (invalid signature) nor backup header \
+                (invalid revision)",
+            ),
+            (Error::NoSpaceLeft, "no space left"),
+            (Error::ConflictPartitionGUID, "conflict of partition GUIDs"),
+            (
+                Error::InvalidPartitionBoundaries,
+                "invalid partition boundaries: partitions must have positive size, must not \
+                overlap, and must fit within the disk",
+            ),
+            (
+                Error::InvalidPartitionNumber(1),
+                "invalid partition number: 1",
+            ),
+            (Error::UnusedPartition, "unused partition"),
+            (Error::PartitionNotFound, "partition not found"),
+            (Error::Overflow, "an arithmetic operation overflowed"),
+        ];
+        for (err, msg) in cases {
+            assert_eq!(err.to_string(), msg);
+            assert_eq!(err.source().is_some(), matches!(err, Error::Io(_)));
+        }
+
+        let err = Error::from(io::Error::from(io::ErrorKind::UnexpectedEof));
+        let source = err.source().unwrap().downcast_ref::<io::Error>().unwrap();
+        assert_eq!(source.kind(), io::ErrorKind::UnexpectedEof);
+    }
+
+    #[test]
+    fn truncated_input_returns_unexpected_eof() {
+        fn test(path: &str, ss: u64) {
+            let mut f = fs::File::open(path).unwrap();
+            f.seek(SeekFrom::Start(ss)).unwrap();
+            let header = GPTHeader::read_from(&mut f).unwrap();
+
+            // A header that is 91 bytes long.
+            let mut data = vec![0; ss as usize + 91];
+            data[ss as usize..].copy_from_slice(&header.to_bytes()[..91]);
+            match GPTHeader::read_from(&mut io::Cursor::new(&mut data[ss as usize..])) {
+                Err(Error::Io(err)) => assert_eq!(err.kind(), io::ErrorKind::UnexpectedEof),
+                x => panic!("unexpected result: {x:?}"),
+            }
+
+            // A partition entry that is 127 bytes long.
+            let mut data = [0; 127];
+            data.copy_from_slice(&GPTPartitionEntry::empty().to_bytes()[..127]);
+            match GPTPartitionEntry::read_from(&mut io::Cursor::new(&mut data[..])) {
+                Err(Error::Io(err)) => assert_eq!(err.kind(), io::ErrorKind::UnexpectedEof),
+                x => panic!("unexpected result: {x:?}"),
+            }
+        }
+
+        test(DISK1, 512);
+        test(DISK2, 4096);
     }
 
     #[test]

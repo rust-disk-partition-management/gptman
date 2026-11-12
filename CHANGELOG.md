@@ -10,6 +10,7 @@ Breaking changes:
 - `GPTHeader::generate_partition_entry_array_crc32` and `GPTHeader::update_partition_entry_array_crc32` now return a `Result`: the array must hold as many entries as the header describes
 - Remove `Error::Deserialize` and `Error::Seserialize`, which can no longer happen
 - A truncated header or partition entry now returns `Error::Io` with `UnexpectedEof`
+- Remove the `thiserror` dependency; `Error` and `BlockError` implement `core::fmt::Display` and `core::error::Error` by hand, with the same messages and sources
 
 Changed:
 
