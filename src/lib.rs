@@ -147,7 +147,7 @@ impl From<io::Error> for Error {
 /// The result of reading, writing or managing a GPT.
 pub type Result<T> = std::result::Result<T, Error>;
 
-/// A GUID Partition Table header as describe on
+/// A GUID Partition Table header as described on
 /// [Wikipedia's page](https://en.wikipedia.org/wiki/GUID_Partition_Table#Partition_table_header_(LBA_1)).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GPTHeader {
@@ -313,8 +313,8 @@ impl GPTHeader {
 
     /// Read and validate the partition entry array that belongs to this header.
     ///
-    /// Seeks to the array using `partition_entry_lba` and `sector_size`, reads all entries, then
-    /// verifies `partition_entry_array_crc32` against the bytes read.
+    /// Seeks the reader to the array with `partition_entry_lba` and `sector_size`, reads all
+    /// entries, then verifies `partition_entry_array_crc32` against the bytes read.
     pub fn read_partitions<R>(
         &self,
         reader: &mut R,
@@ -350,7 +350,7 @@ impl GPTHeader {
     }
 
     /// Write the GPT header into a writer. This operation will update the CRC32 checksums of the
-    /// current struct and seek at the location `primary_lba` before trying to write to disk.
+    /// current struct and seek to the location `primary_lba` before trying to write to disk.
     ///
     /// # Errors
     ///
@@ -454,7 +454,7 @@ impl GPTHeader {
         Ok(())
     }
 
-    /// Updates the header to match the specifications of the seeker given in argument.
+    /// Updates the header to match the disk the seeker is on, reading its size from the end of it.
     /// `first_usable_lba`, `last_usable_lba`, `primary_lba`, `backup_lba`, `partition_entry_lba`
     /// will be updated after this operation.
     pub fn update_from<S>(&mut self, seeker: &mut S, sector_size: u64) -> Result<()>
@@ -1004,10 +1004,10 @@ impl GPT {
         Ok(())
     }
 
-    /// Write the GPT to a writer. This function will seek automatically in the writer to write the
-    /// primary header and the backup header at their proper location.
+    /// Write the GPT to a writer. This function seeks in the writer by itself to write the primary
+    /// header and the backup header at their proper location.
     ///
-    /// Returns the backup `GPTHeader` that has been wrote in case of success (or the primary
+    /// Returns the backup `GPTHeader` that was written in case of success (or the primary
     /// `GPTHeader` if `self` was using a backup header).
     ///
     /// Note that the checksums are re-calculated, thus updating the header.
