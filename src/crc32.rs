@@ -4,6 +4,11 @@
 //! The two checksums of a GPT are computed over 92 bytes of header and over the partition entry
 //! array, so a byte-at-a-time implementation is far from being a bottleneck and the `crc` crate
 //! is not needed to get a table-driven one.
+//!
+//! The table is a single `const`, so it lives in read-only data and every caller shares it.
+//! Computing a checksum therefore takes no stack and no heap, which is what a `no_std` build
+//! needs, and unlike a `crc` crate `Crc::<u32>` constructed inside a function it does not copy a
+//! kilobyte of table onto the stack.
 
 /// The reflected IEEE 802.3 polynomial, `0x04c11db7` with its bits reversed.
 const POLYNOMIAL: u32 = 0xedb8_8320;
