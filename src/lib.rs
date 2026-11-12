@@ -1,7 +1,6 @@
 #![doc = include_str!("../README.md")]
 #![deny(missing_docs)]
 
-use crc::{Crc, CRC_32_ISO_HDLC};
 use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::io;
@@ -11,6 +10,8 @@ use std::ops::{Index, IndexMut, RangeInclusive};
 /// Linux specific helpers
 #[cfg(all(target_os = "linux", feature = "nix"))]
 pub mod linux;
+
+mod crc32;
 
 const DEFAULT_ALIGN: u64 = 2048;
 const MAX_ALIGN: u64 = 16384;
@@ -361,7 +362,7 @@ impl GPTHeader {
         let mut data = vec![0; size];
         reader.read_exact(&mut data)?;
 
-        let sum = Crc::<u32>::new(&CRC_32_ISO_HDLC).checksum(&data);
+        let sum = crc32::checksum(&data);
         if self.partition_entry_array_crc32 != sum {
             return Err(Error::InvalidPartitionEntryArrayChecksum(
                 self.partition_entry_array_crc32,
@@ -430,7 +431,7 @@ impl GPTHeader {
     pub fn generate_crc32_checksum(&self) -> u32 {
         let mut bytes = self.to_bytes();
         write_u32(&mut bytes, 16, 0);
-        Crc::<u32>::new(&CRC_32_ISO_HDLC).checksum(&bytes)
+        crc32::checksum(&bytes)
     }
 
     /// Update the CRC32 checksum of this header.
@@ -451,13 +452,12 @@ impl GPTHeader {
         self.check_partition_entry_array()?;
         self.check_partitions_len(partitions)?;
 
-        let crc = Crc::<u32>::new(&CRC_32_ISO_HDLC);
-        let mut digest = crc.digest();
+        let mut crc = crc32::Crc32::new();
         for x in partitions {
-            digest.update(&x.to_bytes());
+            crc.update(&x.to_bytes());
         }
 
-        Ok(digest.finalize())
+        Ok(crc.finalize())
     }
 
     /// Update the CRC32 checksum of the partition entry array.

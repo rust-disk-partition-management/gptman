@@ -11,6 +11,7 @@ Breaking changes:
 - Remove `Error::Deserialize` and `Error::Seserialize`, which can no longer happen
 - A truncated header or partition entry now returns `Error::Io` with `UnexpectedEof`
 - Remove the `thiserror` dependency; `Error` and `BlockError` implement `core::fmt::Display` and `core::error::Error` by hand, with the same messages and sources
+- Remove the `crc` dependency; the CRC-32 the specification requires is computed by a private module. Other than the optional `nix` feature, `gptman` has no dependencies left
 
 Changed:
 

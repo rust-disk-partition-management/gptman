@@ -17,9 +17,6 @@ categories = ["filesystem"]
 [lib]
 name = "gptman"
 
-[dependencies]
-crc = "3.0.0"
-
 [features]
 default = [ "nix" ]
 
