@@ -1,7 +1,6 @@
-Changelog
-=========
+# Changelog
 
-## Unreleased
+## Unreleased (v4.0.0)
 
 Breaking changes:
 
@@ -10,13 +9,13 @@ Breaking changes:
 - `GPTHeader::generate_partition_entry_array_crc32` and `GPTHeader::update_partition_entry_array_crc32` now return a `Result`: the array must hold as many entries as the header describes
 - Remove `Error::Deserialize` and `Error::Seserialize`, which can no longer happen
 - A truncated header or partition entry now returns `Error::Io` with `UnexpectedEof`
-- Remove the `thiserror` dependency; `Error` and `BlockError` implement `core::fmt::Display` and `core::error::Error` by hand, with the same messages and sources
-- Remove the `crc` dependency; the CRC-32 the specification requires is computed by a private module. Other than the optional `nix` feature, `gptman` has no dependencies left
 
 Changed:
 
 - `GPTHeader::read_partitions` reads the partition entry array in one go and checks its CRC32 against the bytes read, instead of reading each entry separately
 - `GPTHeader::read_from` rejects a partition entry size other than 128 and an array larger than 16 MiB
+- Remove the `thiserror` dependency; `Error` and `BlockError` implement `core::fmt::Display` and `core::error::Error` by hand, with the same messages and sources
+- Remove the `crc` dependency; the CRC-32 the specification requires is computed by a private module. Other than the optional `nix` feature, `gptman` has no dependencies left
 
 Added:
 
