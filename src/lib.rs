@@ -325,7 +325,8 @@ impl GPTHeader {
     {
         self.check_partition_entry_array()?;
 
-        let size = self.partition_entry_array_size() as usize;
+        let size = (u64::from(self.number_of_partition_entries)
+            * u64::from(self.size_of_partition_entry)) as usize;
         reader.seek(SeekFrom::Start(
             self.partition_entry_lba
                 .checked_mul(sector_size)
@@ -392,11 +393,6 @@ impl GPTHeader {
         }
 
         Ok(())
-    }
-
-    /// The size (in bytes) of the partition entry array this header describes.
-    fn partition_entry_array_size(&self) -> u64 {
-        u64::from(self.number_of_partition_entries) * u64::from(self.size_of_partition_entry)
     }
 
     /// Generate the CRC32 checksum of the partition header only.
