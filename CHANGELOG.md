@@ -1,6 +1,31 @@
 Changelog
 =========
 
+## Unreleased
+
+Breaking changes:
+
+- Remove the `wincode` dependency
+- `GPTHeader`, `GPTPartitionEntry` and `PartitionName` no longer implement wincode's `SchemaRead`/`SchemaWrite`. Use the new `from_bytes`/`to_bytes` methods to encode them in memory
+- `GPTHeader::generate_partition_entry_array_crc32` and `GPTHeader::update_partition_entry_array_crc32` now return a `Result`: the array must hold as many entries as the header describes
+- Remove `Error::Deserialize` and `Error::Seserialize`, which can no longer happen
+- A truncated header or partition entry now returns `Error::Io` with `UnexpectedEof`
+
+Changed:
+
+- `GPTHeader::read_partitions` reads the partition entry array in one go and checks its CRC32 against the bytes read, instead of reading each entry separately
+- `GPTHeader::read_from` rejects a partition entry size other than 128 and an array larger than 16 MiB
+
+Added:
+
+- `GPTHeader::from_bytes`/`to_bytes` over `&[u8; 92]`, `GPTPartitionEntry::from_bytes`/`to_bytes` over `&[u8; 128]` and `PartitionName::from_bytes`/`to_bytes` over `&[u8; 72]`
+- `Error::InvalidPartitionEntrySize`, `Error::InvalidPartitionEntryArraySize` and `Error::InvalidPartitionEntryCount`
+
+Fixed:
+
+- `GPTHeader::generate_partition_entry_array_crc32` panicked on a header describing partition entries of a size other than 128, and on a `number_of_partition_entries` whose product with the entry size overflows a `u32`. Both now return an error
+- `GPTHeader::read_partitions` allocated and seeked according to `number_of_partition_entries` read straight from the disk, so a crafted header could request a multi-gigabyte allocation
+
 ## v3.1.1 (2026-04-28)
 
 - Add release workflow with OIDC trusted publishing
