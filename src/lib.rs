@@ -1,119 +1,155 @@
 #![doc = include_str!("../README.md")]
 #![deny(missing_docs)]
 
-use crc::{Crc, CRC_32_ISO_HDLC};
 use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::io;
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::ops::{Index, IndexMut, RangeInclusive};
-use thiserror::Error;
-use wincode::{ReadError, SchemaRead, SchemaWrite, WriteError};
 
 /// Linux specific helpers
 #[cfg(all(target_os = "linux", feature = "nix"))]
 pub mod linux;
 
+mod crc32;
+
 const DEFAULT_ALIGN: u64 = 2048;
 const MAX_ALIGN: u64 = 16384;
+/// Maximum size (in bytes) of the partition entry array that is accepted on read or write.
+///
+/// The UEFI specification requires the array to fit between the header and the first usable LBA,
+/// so the array of a disk that any system would boot from is far below this. It keeps a header
+/// read from an untrusted image from requesting an unreasonable allocation.
+const MAX_PARTITION_ENTRY_ARRAY_SIZE: u64 = 16 * 1024 * 1024;
 
 /// An error that can be produced while reading, writing or managing a GPT.
-#[derive(Debug, Error)]
+#[derive(Debug)]
 #[non_exhaustive]
 pub enum Error {
-    /// Deserialization errors.
-    #[error("deserialization failed")]
-    Deserialize(#[from] ReadError),
-    /// Serialization errors.
-    ///
-    /// Note: this variant name has a historical typo and is kept for API compatibility.
-    // TODO: Rename to `Serialize` in the next semver-major release.
-    #[error("serialization failed")]
-    Seserialize(#[from] WriteError),
     /// I/O errors.
-    #[error("generic I/O error")]
-    Io(#[from] io::Error),
+    Io(io::Error),
     /// An error that occurs when the signature of the GPT isn't what would be expected ("EFI
     /// PART").
-    #[error("invalid signature")]
     InvalidSignature,
     /// An error that occurs when the revision of the GPT isn't what would be expected (00 00 01
     /// 00).
-    #[error("invalid revision")]
     InvalidRevision,
     /// An error that occurs when the header's size (in bytes) isn't what would be expected (92).
-    #[error("invalid header size")]
     InvalidHeaderSize,
+    /// An error that occurs when the size (in bytes) of a partition entry isn't the one gptman
+    /// supports (128).
+    InvalidPartitionEntrySize(u32),
+    /// An error that occurs when the partition entry array is larger than gptman accepts.
+    ///
+    /// The argument is the size (in bytes) of the array described by the header.
+    InvalidPartitionEntryArraySize(u64),
+    /// An error that occurs when the number of partition entries given does not match the number
+    /// the header describes.
+    ///
+    /// The first argument is the number of entries given, the second the number of entries the
+    /// header describes.
+    InvalidPartitionEntryCount(u64, u64),
     /// An error that occurs when the CRC32 checksum of the header doesn't match the expected
     /// checksum for the actual header.
-    #[error("corrupted CRC32 checksum ({0} != {1})")]
     InvalidChecksum(u32, u32),
     /// An error that occurs when the CRC32 checksum of the partition entries array doesn't match
     /// the expected checksum for the actual partition entries array.
-    #[error("corrupted partition entry array CRC32 checksum ({0} != {1})")]
     InvalidPartitionEntryArrayChecksum(u32, u32),
     /// An error that occurs when reading a GPT from a file did not succeed.
     ///
     /// The first argument is the error that occurred when trying to read the primary header.
     /// The second argument is the error that occurred when trying to read the backup header.
-    #[error("could not read primary header ({0}) nor backup header ({1})")]
     ReadError(Box<Error>, Box<Error>),
     /// An error that occurs when there is not enough space left on the table to continue.
-    #[error("no space left")]
     NoSpaceLeft,
     /// An error that occurs when there are partitions with the same GUID in the same array.
-    #[error("conflict of partition GUIDs")]
     ConflictPartitionGUID,
     /// An error that occurs when a partition has an invalid boundary.
     ///
     /// The end sector must be greater or equal to the start sector of the partition.
     ///
     /// Partitions must fit within the disk and must not overlap.
-    #[error(
-        "invalid partition boundaries: partitions must have positive size, must not overlap, \
-        and must fit within the disk"
-    )]
     InvalidPartitionBoundaries,
     /// An error that occurs when the user provide an invalid partition number.
     ///
     /// The partition number must be between 1 and `number_of_partition_entries` (usually 128)
     /// included.
-    #[error("invalid partition number: {0}")]
     InvalidPartitionNumber(u32),
     /// An error that occurs when the user attempts to access information for an unused partition.
-    #[error("unused partition")]
     UnusedPartition,
     /// An operation that required to find a partition, was unable to find that partition.
-    #[error("partition not found")]
     PartitionNotFound,
     /// An arithmetic operation overflowed.
-    #[error("an arithmetic operation overflowed")]
     Overflow,
+}
+
+impl core::fmt::Display for Error {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Error::Io(_) => f.write_str("generic I/O error"),
+            Error::InvalidSignature => f.write_str("invalid signature"),
+            Error::InvalidRevision => f.write_str("invalid revision"),
+            Error::InvalidHeaderSize => f.write_str("invalid header size"),
+            Error::InvalidPartitionEntrySize(size) => {
+                write!(f, "invalid partition entry size: {size}")
+            }
+            Error::InvalidPartitionEntryArraySize(size) => {
+                write!(f, "partition entry array too large: {size} bytes")
+            }
+            Error::InvalidPartitionEntryCount(given, described) => {
+                write!(
+                    f,
+                    "invalid number of partition entries ({given} != {described})"
+                )
+            }
+            Error::InvalidChecksum(found, expected) => {
+                write!(f, "corrupted CRC32 checksum ({found} != {expected})")
+            }
+            Error::InvalidPartitionEntryArrayChecksum(found, expected) => write!(
+                f,
+                "corrupted partition entry array CRC32 checksum ({found} != {expected})"
+            ),
+            Error::ReadError(primary, backup) => write!(
+                f,
+                "could not read primary header ({primary}) nor backup header ({backup})"
+            ),
+            Error::NoSpaceLeft => f.write_str("no space left"),
+            Error::ConflictPartitionGUID => f.write_str("conflict of partition GUIDs"),
+            Error::InvalidPartitionBoundaries => f.write_str(
+                "invalid partition boundaries: partitions must have positive size, must not \
+                overlap, and must fit within the disk",
+            ),
+            Error::InvalidPartitionNumber(number) => {
+                write!(f, "invalid partition number: {number}")
+            }
+            Error::UnusedPartition => f.write_str("unused partition"),
+            Error::PartitionNotFound => f.write_str("partition not found"),
+            Error::Overflow => f.write_str("an arithmetic operation overflowed"),
+        }
+    }
+}
+
+impl core::error::Error for Error {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
+        match self {
+            Error::Io(err) => Some(err),
+            _ => None,
+        }
+    }
+}
+
+impl From<io::Error> for Error {
+    fn from(err: io::Error) -> Error {
+        Error::Io(err)
+    }
 }
 
 /// The result of reading, writing or managing a GPT.
 pub type Result<T> = std::result::Result<T, Error>;
 
-fn encode_into_std_write<T>(src: &T, mut writer: impl Write) -> Result<()>
-where
-    T: SchemaWrite<Src = T>,
-{
-    let buf = wincode::serialize(src)?;
-    Ok(writer.write_all(&buf)?)
-}
-
-fn decode_from_std_read<T>(mut src: impl Read) -> Result<T>
-where
-    T: for<'de> SchemaRead<'de, Dst = T>,
-{
-    let mut buf = vec![0; size_of::<T>()];
-    src.read_exact(&mut buf)?;
-    Ok(wincode::deserialize(&buf)?)
-}
-
-/// A GUID Partition Table header as describe on
+/// A GUID Partition Table header as described on
 /// [Wikipedia's page](https://en.wikipedia.org/wiki/GUID_Partition_Table#Partition_table_header_(LBA_1)).
-#[derive(Debug, SchemaRead, SchemaWrite, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GPTHeader {
     /// GPT signature (must be "EFI PART").
     pub signature: [u8; 8],
@@ -174,7 +210,9 @@ impl GPTHeader {
         Ok(gpt)
     }
 
-    /// Attempt to read a GPT header from a reader.
+    /// Read a GPT header from a reader.
+    ///
+    /// The header is decoded and validated like [`GPTHeader::from_bytes`] does.
     ///
     /// # Implementation notes
     ///
@@ -184,7 +222,35 @@ impl GPTHeader {
     where
         R: Read + Seek + ?Sized,
     {
-        let gpt: GPTHeader = decode_from_std_read(reader)?;
+        let mut bytes = [0; 92];
+        reader.read_exact(&mut bytes)?;
+        GPTHeader::from_bytes(&bytes)
+    }
+
+    /// Decode a GPT header from its on-disk representation.
+    ///
+    /// The signature, the revision, the header size and the CRC32 checksum must be the ones the
+    /// specification requires. The partition entry size must be 128 bytes, the only size gptman
+    /// reads and writes, and the partition entry array must not exceed
+    /// `MAX_PARTITION_ENTRY_ARRAY_SIZE` bytes, so that a header read from an untrusted image
+    /// cannot request an unreasonable allocation.
+    pub fn from_bytes(bytes: &[u8; 92]) -> Result<GPTHeader> {
+        let gpt = GPTHeader {
+            signature: bytes[0..8].try_into().unwrap(),
+            revision: bytes[8..12].try_into().unwrap(),
+            header_size: u32::from_le_bytes(bytes[12..16].try_into().unwrap()),
+            crc32_checksum: u32::from_le_bytes(bytes[16..20].try_into().unwrap()),
+            reserved: bytes[20..24].try_into().unwrap(),
+            primary_lba: u64::from_le_bytes(bytes[24..32].try_into().unwrap()),
+            backup_lba: u64::from_le_bytes(bytes[32..40].try_into().unwrap()),
+            first_usable_lba: u64::from_le_bytes(bytes[40..48].try_into().unwrap()),
+            last_usable_lba: u64::from_le_bytes(bytes[48..56].try_into().unwrap()),
+            disk_guid: bytes[56..72].try_into().unwrap(),
+            partition_entry_lba: u64::from_le_bytes(bytes[72..80].try_into().unwrap()),
+            number_of_partition_entries: u32::from_le_bytes(bytes[80..84].try_into().unwrap()),
+            size_of_partition_entry: u32::from_le_bytes(bytes[84..88].try_into().unwrap()),
+            partition_entry_array_crc32: u32::from_le_bytes(bytes[88..92].try_into().unwrap()),
+        };
 
         if &gpt.signature != b"EFI PART" {
             return Err(Error::InvalidSignature);
@@ -203,13 +269,53 @@ impl GPTHeader {
             return Err(Error::InvalidChecksum(gpt.crc32_checksum, sum));
         }
 
+        gpt.check_partition_entry_array()?;
+
         Ok(gpt)
+    }
+
+    /// Encode the GPT header to its on-disk representation.
+    pub fn to_bytes(&self) -> [u8; 92] {
+        let mut bytes = [0; 92];
+        bytes[0..8].copy_from_slice(&self.signature);
+        bytes[8..12].copy_from_slice(&self.revision);
+        bytes[12..16].copy_from_slice(&self.header_size.to_le_bytes());
+        bytes[16..20].copy_from_slice(&self.crc32_checksum.to_le_bytes());
+        bytes[20..24].copy_from_slice(&self.reserved);
+        bytes[24..32].copy_from_slice(&self.primary_lba.to_le_bytes());
+        bytes[32..40].copy_from_slice(&self.backup_lba.to_le_bytes());
+        bytes[40..48].copy_from_slice(&self.first_usable_lba.to_le_bytes());
+        bytes[48..56].copy_from_slice(&self.last_usable_lba.to_le_bytes());
+        bytes[56..72].copy_from_slice(&self.disk_guid);
+        bytes[72..80].copy_from_slice(&self.partition_entry_lba.to_le_bytes());
+        bytes[80..84].copy_from_slice(&self.number_of_partition_entries.to_le_bytes());
+        bytes[84..88].copy_from_slice(&self.size_of_partition_entry.to_le_bytes());
+        bytes[88..92].copy_from_slice(&self.partition_entry_array_crc32.to_le_bytes());
+        bytes
+    }
+
+    /// Check that the partition entry array of this header is one gptman can read and write.
+    fn check_partition_entry_array(&self) -> Result<()> {
+        if self.size_of_partition_entry != 128 {
+            return Err(Error::InvalidPartitionEntrySize(
+                self.size_of_partition_entry,
+            ));
+        }
+
+        let size =
+            u64::from(self.number_of_partition_entries) * u64::from(self.size_of_partition_entry);
+        if size > MAX_PARTITION_ENTRY_ARRAY_SIZE {
+            return Err(Error::InvalidPartitionEntryArraySize(size));
+        }
+
+        Ok(())
     }
 
     /// Read and validate the partition entry array that belongs to this header.
     ///
-    /// Seeks to each partition entry using `partition_entry_lba` and `sector_size`, reads all
-    /// entries, then verifies `partition_entry_array_crc32`.
+    /// Seeks the reader to the array with `partition_entry_lba` and `sector_size`, reads the
+    /// entries a sector at a time (one entry at a time when a sector is smaller than an entry),
+    /// then verifies `partition_entry_array_crc32` against the bytes read.
     pub fn read_partitions<R>(
         &self,
         reader: &mut R,
@@ -218,47 +324,93 @@ impl GPTHeader {
     where
         R: Read + Seek + ?Sized,
     {
-        let mut partitions = Vec::with_capacity(self.number_of_partition_entries as usize);
-        for i in 0..self.number_of_partition_entries {
-            reader.seek(SeekFrom::Start(
-                self.partition_entry_lba * sector_size
-                    + u64::from(i) * u64::from(self.size_of_partition_entry),
-            ))?;
-            partitions.push(GPTPartitionEntry::read_from(reader)?);
+        self.check_partition_entry_array()?;
+
+        reader.seek(SeekFrom::Start(
+            self.partition_entry_lba
+                .checked_mul(sector_size)
+                .ok_or(Error::Overflow)?,
+        ))?;
+
+        // NOTE: the array is read and hashed a sector at a time, so it never has to be held in
+        //       memory as a whole: only the partitions themselves are kept. Reading a single
+        //       entry at a time instead would issue one read call per entry, which is 128 of them
+        //       for the usual table and three times slower on a real file. The buffer holds the
+        //       entries that make up a sector (a single entry when a sector is smaller than an
+        //       entry), or the whole array when that is smaller, so it stays bounded by the array
+        //       size rather than by the sector size the caller gives.
+        const ENTRY_SIZE: usize = 128;
+
+        let total = self.number_of_partition_entries as usize;
+        let entries_per_sector = (sector_size as usize / ENTRY_SIZE).max(1);
+        let entries_per_read = entries_per_sector.min(total);
+        let mut partitions = Vec::with_capacity(total);
+        let mut crc = crc32::Crc32::new();
+        let mut buf = vec![0; entries_per_read * ENTRY_SIZE];
+        let mut remaining = total;
+        while remaining > 0 {
+            let count = remaining.min(entries_per_read);
+            let len = count * ENTRY_SIZE;
+            reader.read_exact(&mut buf[..len])?;
+            crc.update(&buf[..len]);
+            for bytes in buf[..len].chunks_exact(ENTRY_SIZE) {
+                partitions.push(GPTPartitionEntry::from_bytes(bytes.try_into().unwrap()));
+            }
+            remaining -= count;
         }
-        let sum = self.generate_partition_entry_array_crc32(&partitions);
+
+        let sum = crc.finalize();
         if self.partition_entry_array_crc32 != sum {
             return Err(Error::InvalidPartitionEntryArrayChecksum(
                 self.partition_entry_array_crc32,
                 sum,
             ));
         }
+
         Ok(partitions)
     }
 
     /// Write the GPT header into a writer. This operation will update the CRC32 checksums of the
-    /// current struct and seek at the location `primary_lba` before trying to write to disk.
+    /// current struct and seek to the location `primary_lba` before trying to write to disk.
+    ///
+    /// # Errors
+    ///
+    /// The header has to be one gptman can read back: a size of 92 bytes, a partition entry size
+    /// of 128 bytes, and as many partition entries as `number_of_partition_entries`.
     pub fn write_into<W>(
         &mut self,
-        mut writer: &mut W,
+        writer: &mut W,
         sector_size: u64,
         partitions: &[GPTPartitionEntry],
     ) -> Result<()>
     where
         W: Write + Seek + ?Sized,
     {
-        self.update_partition_entry_array_crc32(partitions);
+        if self.header_size != 92 {
+            return Err(Error::InvalidHeaderSize);
+        }
+        self.check_partition_entry_array()?;
+        self.update_partition_entry_array_crc32(partitions)?;
         self.update_crc32_checksum();
 
-        writer.seek(SeekFrom::Start(self.primary_lba * sector_size))?;
-        encode_into_std_write(self, &mut writer)?;
+        writer.seek(SeekFrom::Start(
+            self.primary_lba
+                .checked_mul(sector_size)
+                .ok_or(Error::Overflow)?,
+        ))?;
+        writer.write_all(&self.to_bytes())?;
 
-        for i in 0..self.number_of_partition_entries {
+        let array_offset = self
+            .partition_entry_lba
+            .checked_mul(sector_size)
+            .ok_or(Error::Overflow)?;
+        for (i, partition) in partitions.iter().enumerate() {
             writer.seek(SeekFrom::Start(
-                self.partition_entry_lba * sector_size
-                    + u64::from(i) * u64::from(self.size_of_partition_entry),
+                array_offset
+                    .checked_add((i * 128) as u64)
+                    .ok_or(Error::Overflow)?,
             ))?;
-            encode_into_std_write(&partitions[i as usize], &mut writer)?;
+            writer.write_all(&partition.to_bytes())?;
         }
 
         Ok(())
@@ -266,12 +418,9 @@ impl GPTHeader {
 
     /// Generate the CRC32 checksum of the partition header only.
     pub fn generate_crc32_checksum(&self) -> u32 {
-        let mut clone = self.clone();
-        clone.crc32_checksum = 0;
-        let data = wincode::serialize(&clone).expect("could not serialize");
-        assert_eq!(data.len() as u32, clone.header_size);
-
-        Crc::<u32>::new(&CRC_32_ISO_HDLC).checksum(&data)
+        let mut bytes = self.to_bytes();
+        bytes[16..20].copy_from_slice(&0u32.to_le_bytes());
+        crc32::checksum(&bytes)
     }
 
     /// Update the CRC32 checksum of this header.
@@ -280,31 +429,53 @@ impl GPTHeader {
     }
 
     /// Generate the CRC32 checksum of the partition entry array.
-    pub fn generate_partition_entry_array_crc32(&self, partitions: &[GPTPartitionEntry]) -> u32 {
-        let mut clone = self.clone();
-        clone.partition_entry_array_crc32 = 0;
-        let crc = Crc::<u32>::new(&CRC_32_ISO_HDLC);
-        let mut digest = crc.digest();
-        let mut wrote = 0;
-        for x in partitions {
-            let data = wincode::serialize(x).expect("could not serialize");
-            digest.update(&data);
-            wrote += data.len();
-        }
-        assert_eq!(
-            wrote as u32,
-            clone.size_of_partition_entry * clone.number_of_partition_entries
-        );
+    ///
+    /// # Errors
+    ///
+    /// The array has to be the one this header describes: as many entries as
+    /// `number_of_partition_entries`.
+    pub fn generate_partition_entry_array_crc32(
+        &self,
+        partitions: &[GPTPartitionEntry],
+    ) -> Result<u32> {
+        self.check_partition_entry_array()?;
+        self.check_partitions_len(partitions)?;
 
-        digest.finalize()
+        let mut crc = crc32::Crc32::new();
+        for x in partitions {
+            crc.update(&x.to_bytes());
+        }
+
+        Ok(crc.finalize())
     }
 
     /// Update the CRC32 checksum of the partition entry array.
-    pub fn update_partition_entry_array_crc32(&mut self, partitions: &[GPTPartitionEntry]) {
-        self.partition_entry_array_crc32 = self.generate_partition_entry_array_crc32(partitions);
+    ///
+    /// # Errors
+    ///
+    /// The array has to be the one this header describes: as many entries as
+    /// `number_of_partition_entries`.
+    pub fn update_partition_entry_array_crc32(
+        &mut self,
+        partitions: &[GPTPartitionEntry],
+    ) -> Result<()> {
+        self.partition_entry_array_crc32 = self.generate_partition_entry_array_crc32(partitions)?;
+        Ok(())
     }
 
-    /// Updates the header to match the specifications of the seeker given in argument.
+    /// Check that `partitions` holds exactly the entries this header describes.
+    fn check_partitions_len(&self, partitions: &[GPTPartitionEntry]) -> Result<()> {
+        if partitions.len() != self.number_of_partition_entries as usize {
+            return Err(Error::InvalidPartitionEntryCount(
+                partitions.len() as u64,
+                u64::from(self.number_of_partition_entries),
+            ));
+        }
+
+        Ok(())
+    }
+
+    /// Updates the header to match the disk the seeker is on, reading its size from the end of it.
     /// `first_usable_lba`, `last_usable_lba`, `primary_lba`, `backup_lba`, `partition_entry_lba`
     /// will be updated after this operation.
     pub fn update_from<S>(&mut self, seeker: &mut S, sector_size: u64) -> Result<()>
@@ -363,11 +534,44 @@ impl PartitionName {
     pub fn as_str(&self) -> &str {
         &self.string
     }
+
+    /// Decode a partition name from its on-disk representation: 36 UTF-16LE code units.
+    ///
+    /// The string stops at the first null code unit; anything after it is kept so that a name
+    /// encoded again, or used for a checksum, is byte-for-byte identical to what was read.
+    pub fn from_bytes(bytes: &[u8; 72]) -> PartitionName {
+        let mut raw_buf = [0; 36];
+        for (i, x) in raw_buf.iter_mut().enumerate() {
+            *x = u16::from_le_bytes(bytes[2 * i..2 * i + 2].try_into().unwrap());
+        }
+
+        let zero_pos = raw_buf
+            .iter()
+            .position(|x| *x == 0)
+            .unwrap_or(raw_buf.len());
+
+        PartitionName {
+            string: String::from_utf16_lossy(&raw_buf[..zero_pos]),
+            raw_buf,
+        }
+    }
+
+    /// Encode the partition name to its on-disk representation.
+    ///
+    /// The bytes read from disk are used rather than the string, so that garbage left after the
+    /// null terminator of a name read from disk is written back unchanged.
+    pub fn to_bytes(&self) -> [u8; 72] {
+        let mut bytes = [0; 72];
+        for (i, x) in self.raw_buf.iter().enumerate() {
+            bytes[2 * i..2 * i + 2].copy_from_slice(&x.to_le_bytes());
+        }
+        bytes
+    }
 }
 
 impl std::fmt::Display for PartitionName {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", &self.string)
+        write!(f, "{}", self.string)
     }
 }
 
@@ -384,52 +588,6 @@ impl From<&str> for PartitionName {
             string: value.to_string(),
             raw_buf,
         }
-    }
-}
-
-impl<'de> SchemaRead<'de> for PartitionName {
-    type Dst = PartitionName;
-
-    fn read(
-        reader: &mut impl wincode::io::Reader<'de>,
-        dst: &mut std::mem::MaybeUninit<Self::Dst>,
-    ) -> wincode::ReadResult<()> {
-        // 36 UTF-16LE code units (72 bytes)
-        let n_bytes = 36 * size_of::<u16>();
-        let buf = reader.fill_exact(n_bytes)?;
-        let mut raw_buf = [0; 36];
-        for i in 0..n_bytes / 2 {
-            raw_buf[i] = ((buf[2 * i + 1] as u16) << 8) | buf[2 * i] as u16;
-        }
-
-        reader.consume(n_bytes)?;
-        let zero_pos = raw_buf
-            .iter()
-            .position(|x| *x == 0)
-            .unwrap_or(raw_buf.len());
-
-        let name = PartitionName {
-            string: String::from_utf16_lossy(&raw_buf[..zero_pos]),
-            raw_buf,
-        };
-        dst.write(name);
-        Ok(())
-    }
-}
-
-impl SchemaWrite for PartitionName {
-    type Src = PartitionName;
-
-    fn size_of(_: &Self::Src) -> wincode::WriteResult<usize> {
-        Ok(36 * size_of::<u16>())
-    }
-
-    fn write(writer: &mut impl wincode::io::Writer, src: &Self::Src) -> wincode::WriteResult<()> {
-        // Favor using the content in the raw buffer in case there is garbage left (used for the CRC)
-        for x in src.raw_buf {
-            <u16 as SchemaWrite>::write(writer, &x)?;
-        }
-        Ok(())
     }
 }
 
@@ -457,7 +615,7 @@ impl SchemaWrite for PartitionName {
 ///
 /// assert_eq!(gpt[1].partition_name.as_str(), "A Robot Named Fight!");
 /// ```
-#[derive(Debug, SchemaRead, SchemaWrite, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GPTPartitionEntry {
     /// 16 bytes representing the UUID of the partition's type.
     pub partition_type_guid: [u8; 16],
@@ -515,11 +673,39 @@ impl GPTPartitionEntry {
     }
 
     /// Read a partition entry from the reader at the current position.
+    ///
+    /// The entry is decoded like [`GPTPartitionEntry::from_bytes`] does.
     pub fn read_from<R>(reader: &mut R) -> Result<GPTPartitionEntry>
     where
         R: Read + ?Sized,
     {
-        decode_from_std_read(reader)
+        let mut bytes = [0; 128];
+        reader.read_exact(&mut bytes)?;
+        Ok(GPTPartitionEntry::from_bytes(&bytes))
+    }
+
+    /// Decode a partition entry from its on-disk representation.
+    pub fn from_bytes(bytes: &[u8; 128]) -> GPTPartitionEntry {
+        GPTPartitionEntry {
+            partition_type_guid: bytes[0..16].try_into().unwrap(),
+            unique_partition_guid: bytes[16..32].try_into().unwrap(),
+            starting_lba: u64::from_le_bytes(bytes[32..40].try_into().unwrap()),
+            ending_lba: u64::from_le_bytes(bytes[40..48].try_into().unwrap()),
+            attribute_bits: u64::from_le_bytes(bytes[48..56].try_into().unwrap()),
+            partition_name: PartitionName::from_bytes(bytes[56..128].try_into().unwrap()),
+        }
+    }
+
+    /// Encode the partition entry to its on-disk representation.
+    pub fn to_bytes(&self) -> [u8; 128] {
+        let mut bytes = [0; 128];
+        bytes[0..16].copy_from_slice(&self.partition_type_guid);
+        bytes[16..32].copy_from_slice(&self.unique_partition_guid);
+        bytes[32..40].copy_from_slice(&self.starting_lba.to_le_bytes());
+        bytes[40..48].copy_from_slice(&self.ending_lba.to_le_bytes());
+        bytes[48..56].copy_from_slice(&self.attribute_bits.to_le_bytes());
+        bytes[56..128].copy_from_slice(&self.partition_name.to_bytes());
+        bytes
     }
 
     /// Returns `true` if the partition entry is not used (type GUID == `[0; 16]`)
@@ -839,10 +1025,10 @@ impl GPT {
         Ok(())
     }
 
-    /// Write the GPT to a writer. This function will seek automatically in the writer to write the
-    /// primary header and the backup header at their proper location.
+    /// Write the GPT to a writer. This function seeks in the writer by itself to write the primary
+    /// header and the backup header at their proper location.
     ///
-    /// Returns the backup `GPTHeader` that has been wrote in case of success (or the primary
+    /// Returns the backup `GPTHeader` that was written in case of success (or the primary
     /// `GPTHeader` if `self` was using a backup header).
     ///
     /// Note that the checksums are re-calculated, thus updating the header.
@@ -1069,7 +1255,7 @@ impl GPT {
             .into_iter()
             .filter(|(_, l)| *l >= size)
             .collect::<Vec<_>>();
-        slots.sort_by(|(_, l1), (_, l2)| l1.cmp(l2));
+        slots.sort_by_key(|(_, l)| *l);
         slots.first().map(|&(i, _)| i)
     }
 
@@ -1241,7 +1427,7 @@ impl GPT {
     }
 
     fn write_protective_mbr_into_impl<W>(
-        mut writer: &mut W,
+        writer: &mut W,
         sector_size: u64,
         bootable: bool,
     ) -> Result<()>
@@ -1268,7 +1454,7 @@ impl GPT {
         } else {
             size as u32
         };
-        encode_into_std_write(&n_sectors, &mut writer)?;
+        writer.write_all(&n_sectors.to_le_bytes())?;
         writer.write_all(&[0; 16])?; // partition 2
         writer.write_all(&[0; 16])?; // partition 3
         writer.write_all(&[0; 16])?; // partition 4
@@ -1362,16 +1548,16 @@ mod test {
                     used += 1;
                 }
 
-                // NOTE: testing that serializing the PartitionName (and the whole struct) works
-                let data1 = wincode::serialize(&partition).unwrap();
+                // NOTE: testing that encoding the PartitionName (and the whole struct) works
+                let data1 = partition.to_bytes();
                 f.seek(SeekFrom::Start(
                     gpt.partition_entry_lba * ss
                         + u64::from(i) * u64::from(gpt.size_of_partition_entry),
                 ))
                 .unwrap();
-                let mut data2 = vec![0; gpt.size_of_partition_entry as usize];
+                let mut data2 = vec![0; data1.len()];
                 f.read_exact(&mut data2).unwrap();
-                assert_eq!(data1, data2);
+                assert_eq!(data1, data2[..]);
 
                 partitions.push(partition);
             }
@@ -1385,9 +1571,13 @@ mod test {
             assert_ne!(gpt.crc32_checksum, 0);
 
             let sum = gpt.partition_entry_array_crc32;
-            gpt.update_partition_entry_array_crc32(&partitions);
+            gpt.update_partition_entry_array_crc32(&partitions).unwrap();
             assert_eq!(gpt.partition_entry_array_crc32, sum);
-            assert_eq!(gpt.generate_partition_entry_array_crc32(&partitions), sum);
+            assert_eq!(
+                gpt.generate_partition_entry_array_crc32(&partitions)
+                    .unwrap(),
+                sum
+            );
             assert_ne!(gpt.partition_entry_array_crc32, 0);
         }
 
@@ -1422,7 +1612,7 @@ mod test {
             assert_eq!(gpt.header.partition_entry_lba, 2);
             gpt.header.crc32_checksum = 1;
             cur.seek(SeekFrom::Start(gpt.sector_size)).unwrap();
-            encode_into_std_write(&gpt.header, &mut cur).unwrap();
+            cur.write_all(&gpt.header.to_bytes()).unwrap();
             let maybe_gpt = GPT::read_from(&mut cur, gpt.sector_size);
             assert!(maybe_gpt.is_ok());
             let gpt = maybe_gpt.unwrap();
@@ -1448,6 +1638,34 @@ mod test {
         assert_eq!(gpt.find_first_place(10000), None);
         assert_eq!(gpt.find_first_place(4), Some(44));
         assert_eq!(gpt.find_first_place(8), Some(53));
+    }
+
+    #[test]
+    fn truncated_input_returns_unexpected_eof() {
+        fn test(path: &str, ss: u64) {
+            let mut f = fs::File::open(path).unwrap();
+            f.seek(SeekFrom::Start(ss)).unwrap();
+            let header = GPTHeader::read_from(&mut f).unwrap();
+
+            // A header that is 91 bytes long.
+            let mut data = vec![0; ss as usize + 91];
+            data[ss as usize..].copy_from_slice(&header.to_bytes()[..91]);
+            match GPTHeader::read_from(&mut io::Cursor::new(&mut data[ss as usize..])) {
+                Err(Error::Io(err)) => assert_eq!(err.kind(), io::ErrorKind::UnexpectedEof),
+                x => panic!("unexpected result: {x:?}"),
+            }
+
+            // A partition entry that is 127 bytes long.
+            let mut data = [0; 127];
+            data.copy_from_slice(&GPTPartitionEntry::empty().to_bytes()[..127]);
+            match GPTPartitionEntry::read_from(&mut io::Cursor::new(&mut data[..])) {
+                Err(Error::Io(err)) => assert_eq!(err.kind(), io::ErrorKind::UnexpectedEof),
+                x => panic!("unexpected result: {x:?}"),
+            }
+        }
+
+        test(DISK1, 512);
+        test(DISK2, 4096);
     }
 
     #[test]
@@ -1577,7 +1795,7 @@ mod test {
 
             gpt.header.crc32_checksum = 1;
             cur.seek(SeekFrom::Start(ss)).unwrap();
-            encode_into_std_write(&gpt.header, &mut cur).unwrap();
+            cur.write_all(&gpt.header.to_bytes()).unwrap();
             let maybe_gpt = GPT::read_from(&mut cur, ss);
             assert!(maybe_gpt.is_ok());
             let gpt = maybe_gpt.unwrap();
@@ -1598,7 +1816,7 @@ mod test {
             gpt.header.crc32_checksum = 1;
             let backup_lba = gpt.header.backup_lba;
             cur.seek(SeekFrom::Start(ss)).unwrap();
-            encode_into_std_write(&gpt.header, &mut cur).unwrap();
+            cur.write_all(&gpt.header.to_bytes()).unwrap();
             let mut gpt = GPT::read_from(&mut cur, ss).unwrap();
             assert!(!gpt.is_primary());
             assert!(gpt.is_backup());
@@ -1618,7 +1836,7 @@ mod test {
 
             gpt.header.crc32_checksum = 1;
             cur.seek(SeekFrom::Start(ss)).unwrap();
-            encode_into_std_write(&gpt.header, &mut cur).unwrap();
+            cur.write_all(&gpt.header.to_bytes()).unwrap();
             let maybe_gpt = GPT::read_from(&mut cur, ss);
             assert!(maybe_gpt.is_ok());
             let gpt = maybe_gpt.unwrap();
@@ -1648,7 +1866,7 @@ mod test {
 
             gpt.header.crc32_checksum = 1;
             cur.seek(SeekFrom::Start(ss)).unwrap();
-            encode_into_std_write(&gpt.header, &mut cur).unwrap();
+            cur.write_all(&gpt.header.to_bytes()).unwrap();
             let maybe_gpt = GPT::read_from(&mut cur, ss);
             assert!(maybe_gpt.is_ok());
             let gpt = maybe_gpt.unwrap();
@@ -1852,8 +2070,11 @@ mod test {
             }
 
             cur.seek(SeekFrom::Start(446 + 8)).unwrap();
-            let first_lba: u32 = decode_from_std_read(&mut cur).unwrap();
-            let sectors: u32 = decode_from_std_read(&mut cur).unwrap();
+            let mut bytes = [0; 4];
+            cur.read_exact(&mut bytes).unwrap();
+            let first_lba = u32::from_le_bytes(bytes);
+            cur.read_exact(&mut bytes).unwrap();
+            let sectors = u32::from_le_bytes(bytes);
             assert_eq!(first_lba, 1);
             assert_eq!(sectors, 99);
         }
@@ -1915,6 +2136,159 @@ mod test {
             gpt.header.partition_entry_lba,
             gpt.header.last_usable_lba + 1
         );
+    }
+
+    #[test]
+    fn header_and_partition_entry_bytes_round_trip() {
+        fn test(path: &str, ss: u64) {
+            let data = fs::read(path).unwrap();
+
+            let header_bytes: [u8; 92] = data[ss as usize..][..92].try_into().unwrap();
+            let header = GPTHeader::from_bytes(&header_bytes).unwrap();
+            assert_eq!(header.to_bytes(), header_bytes);
+
+            let mut offset = header.partition_entry_lba as usize * ss as usize;
+            for _ in 0..header.number_of_partition_entries {
+                let entry_bytes: [u8; 128] = data[offset..][..128].try_into().unwrap();
+                let entry = GPTPartitionEntry::from_bytes(&entry_bytes);
+                assert_eq!(entry.to_bytes(), entry_bytes);
+                offset += 128;
+            }
+        }
+
+        test(DISK1, 512);
+        test(DISK2, 4096);
+        test(DISK3, 512);
+        test(DISK4, 4096);
+    }
+
+    #[test]
+    fn partition_name_bytes_round_trip() {
+        let name: PartitionName = "A Robot Named Fight!".into();
+        assert_eq!(PartitionName::from_bytes(&name.to_bytes()), name);
+
+        // A name that fills the buffer exactly has no null terminator.
+        let name: PartitionName = "012345678901234567890123456789012345".into();
+        assert_eq!(PartitionName::from_bytes(&name.to_bytes()), name);
+    }
+
+    #[test]
+    fn read_partitions_rejects_mismatched_entry_count() {
+        let mut f = fs::File::open(DISK1).unwrap();
+        f.seek(SeekFrom::Start(512)).unwrap();
+        let header = GPTHeader::read_from(&mut f).unwrap();
+        let mut partitions = header.read_partitions(&mut f, 512).unwrap();
+        partitions.pop();
+        assert!(matches!(
+            header.generate_partition_entry_array_crc32(&partitions),
+            Err(Error::InvalidPartitionEntryCount(127, 128))
+        ));
+    }
+
+    #[test]
+    fn read_partitions_in_sectors_of_any_size() {
+        // NOTE: the array is read a sector at a time, so the last read is a partial one whenever
+        //       the number of entries is not a multiple of the entries per sector.
+        for (ss, count) in [
+            (512u64, 128u32), // 4 entries per sector, exact
+            (512, 130),       // 4 entries per sector, 2 left over
+            (512, 1),         // a single entry, a partial read
+            (4096, 128),      // 32 entries per sector, exact
+            (4096, 33),       // 32 entries per sector, 1 left over
+            (512, 256),       // twice the usual table, 64 reads
+            (96, 8),          // a sector smaller than an entry
+        ] {
+            let entry = GPTPartitionEntry {
+                attribute_bits: 0,
+                ending_lba: 9,
+                partition_name: "entry".into(),
+                partition_type_guid: [1; 16],
+                starting_lba: 2,
+                unique_partition_guid: [2; 16],
+            };
+            let entries: Vec<GPTPartitionEntry> = (0..count).map(|_| entry.clone()).collect();
+
+            // NOTE: `new_from` describes 128 entries by default, so the disk has to be large
+            //       enough for those before the count is changed to the one under test.
+            let sectors = 2 + 16384usize.div_ceil(ss as usize);
+            let mut header = GPTHeader::new_from(
+                &mut io::Cursor::new(vec![0; ss as usize * (sectors + 1)]),
+                ss,
+                [3; 16],
+            )
+            .unwrap();
+            header.number_of_partition_entries = count;
+            header.partition_entry_lba = 2;
+            header.update_partition_entry_array_crc32(&entries).unwrap();
+            header.update_crc32_checksum();
+
+            // Lay the entries out the way a disk holds them: the header in sector 1, the array
+            // from sector 2, everything padded to whole sectors.
+            let array_sectors = (count as usize * 128).div_ceil(ss as usize);
+            let mut disk = vec![0u8; ss as usize * (2 + array_sectors)];
+            disk[ss as usize..ss as usize + 92].copy_from_slice(&header.to_bytes());
+            for (i, entry) in entries.iter().enumerate() {
+                let offset = 2 * ss as usize + i * 128;
+                disk[offset..offset + 128].copy_from_slice(&entry.to_bytes());
+            }
+
+            let mut cur = io::Cursor::new(&mut disk[..]);
+            cur.seek(SeekFrom::Start(ss)).unwrap();
+            let header = GPTHeader::read_from(&mut cur).unwrap();
+            let read = header.read_partitions(&mut cur, ss).unwrap();
+
+            assert_eq!(
+                read.len(),
+                count as usize,
+                "sector size {ss}, {count} entries"
+            );
+            for entry in &read {
+                assert_eq!(entry, &entries[0], "sector size {ss}, {count} entries");
+            }
+        }
+    }
+
+    #[test]
+    fn from_bytes_rejects_unsupported_entry_size() {
+        fn test(path: &str, ss: u64) {
+            let data = fs::read(path).unwrap();
+            let bytes: [u8; 92] = data[ss as usize..][..92].try_into().unwrap();
+            let header = GPTHeader::from_bytes(&bytes).unwrap();
+
+            // 256-byte entries are valid in the specification but not supported by gptman.
+            let mut header = header;
+            header.size_of_partition_entry = 256;
+            header.update_crc32_checksum();
+
+            match GPTHeader::from_bytes(&header.to_bytes()) {
+                Err(Error::InvalidPartitionEntrySize(256)) => {}
+                x => panic!("unexpected result: {x:?}"),
+            }
+        }
+
+        test(DISK1, 512);
+        test(DISK2, 4096);
+    }
+
+    #[test]
+    fn from_bytes_rejects_oversized_partition_entry_array() {
+        fn test(path: &str, ss: u64) {
+            let data = fs::read(path).unwrap();
+            let bytes: [u8; 92] = data[ss as usize..][..92].try_into().unwrap();
+
+            // NOTE: 1 048 576 entries of 128 bytes is 128 MiB, well over the limit.
+            let mut header = GPTHeader::from_bytes(&bytes).unwrap();
+            header.number_of_partition_entries = 1_048_576;
+            header.update_crc32_checksum();
+
+            match GPTHeader::from_bytes(&header.to_bytes()) {
+                Err(Error::InvalidPartitionEntryArraySize(134_217_728)) => {}
+                x => panic!("unexpected result: {x:?}"),
+            }
+        }
+
+        test(DISK1, 512);
+        test(DISK2, 4096);
     }
 }
 

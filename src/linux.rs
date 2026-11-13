@@ -2,7 +2,6 @@ use std::fs;
 use std::io;
 use std::os::linux::fs::MetadataExt;
 use std::os::unix::io::AsRawFd;
-use thiserror::Error;
 
 mod ioctl {
     use nix::{ioctl_none, ioctl_read_bad, request_code_none};
@@ -19,23 +18,56 @@ const S_IFMT: u32 = 0o170_000;
 const S_IFBLK: u32 = 0o60_000;
 
 /// An error that can happen while doing an ioctl call with a block device
-#[derive(Debug, Error)]
+#[derive(Debug)]
 pub enum BlockError {
     /// An error that occurs when the metadata of the input file couldn't be retrieved
-    #[error("failed to get metadata of device fd")]
-    Metadata(#[from] io::Error),
+    Metadata(io::Error),
     /// An error that occurs when the partition table could not be reloaded by the OS
-    #[error("failed to reload partition table of device")]
-    RereadTable(#[from] nix::Error),
+    RereadTable(nix::Error),
     /// An error that occurs when the sector size could not be retrieved from the OS
-    #[error("failed to get the sector size of device: {0}")]
     GetSectorSize(nix::Error),
     /// An error that occurs when an invalid return code has been received from an ioctl call
-    #[error("invalid return value of ioctl ({0} != 0)")]
     InvalidReturnValue(i32),
     /// An error that occurs when the file provided is not a block device
-    #[error("not a block device")]
     NotBlock,
+}
+
+impl core::fmt::Display for BlockError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            BlockError::Metadata(_) => f.write_str("failed to get metadata of device fd"),
+            BlockError::RereadTable(_) => f.write_str("failed to reload partition table of device"),
+            BlockError::GetSectorSize(err) => {
+                write!(f, "failed to get the sector size of device: {err}")
+            }
+            BlockError::InvalidReturnValue(value) => {
+                write!(f, "invalid return value of ioctl ({value} != 0)")
+            }
+            BlockError::NotBlock => f.write_str("not a block device"),
+        }
+    }
+}
+
+impl core::error::Error for BlockError {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
+        match self {
+            BlockError::Metadata(err) => Some(err),
+            BlockError::RereadTable(err) => Some(err),
+            _ => None,
+        }
+    }
+}
+
+impl From<io::Error> for BlockError {
+    fn from(err: io::Error) -> BlockError {
+        BlockError::Metadata(err)
+    }
+}
+
+impl From<nix::Error> for BlockError {
+    fn from(err: nix::Error) -> BlockError {
+        BlockError::RereadTable(err)
+    }
 }
 
 /// Makes an ioctl call to make the OS reread the partition table of a block device

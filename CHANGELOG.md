@@ -1,5 +1,31 @@
-Changelog
-=========
+# Changelog
+
+## Unreleased (v4.0.0)
+
+Breaking changes:
+
+- Remove the `wincode` dependency (#149)
+- `GPTHeader`, `GPTPartitionEntry` and `PartitionName` no longer implement wincode's `SchemaRead`/`SchemaWrite`. Use the new `from_bytes`/`to_bytes` methods to encode them in memory (#149)
+- `GPTHeader::generate_partition_entry_array_crc32` and `GPTHeader::update_partition_entry_array_crc32` now return a `Result`: the array must hold as many entries as the header describes (#149)
+- Remove `Error::Deserialize` and `Error::Seserialize`, which can no longer happen (#149)
+- A truncated header or partition entry now returns `Error::Io` with `UnexpectedEof` (#149)
+
+Changed:
+
+- `GPTHeader::read_partitions` seeks once and reads the partition entry array a sector at a time, instead of seeking and reading once per entry as it did in v3.1.1. Peak heap is 19 984 bytes for `GPT::read_from` on a 128-entry table, against 19 624 in v3.1.1 (#149)
+- `GPTHeader::read_from` rejects a partition entry size other than 128 and an array larger than 16 MiB (#149)
+- Remove the `thiserror` dependency; `Error` and `BlockError` implement `core::fmt::Display` and `core::error::Error` by hand, with the same messages and sources (#149)
+- Remove the `crc` dependency; the CRC-32 the specification requires is computed by a private module. Other than the optional `nix` feature, `gptman` has no dependencies left (#149)
+
+Added:
+
+- `GPTHeader::from_bytes`/`to_bytes` over `&[u8; 92]`, `GPTPartitionEntry::from_bytes`/`to_bytes` over `&[u8; 128]` and `PartitionName::from_bytes`/`to_bytes` over `&[u8; 72]` (#149)
+- `Error::InvalidPartitionEntrySize`, `Error::InvalidPartitionEntryArraySize` and `Error::InvalidPartitionEntryCount` (#149)
+
+Fixed:
+
+- `GPTHeader::generate_partition_entry_array_crc32` panicked on a header describing partition entries of a size other than 128, and on a `number_of_partition_entries` whose product with the entry size overflows a `u32`. Both now return an error (#149)
+- `GPTHeader::read_partitions` allocated and seeked according to `number_of_partition_entries` read straight from the disk, so a crafted header could request a multi-gigabyte allocation (#149)
 
 ## v3.1.1 (2026-04-28)
 
