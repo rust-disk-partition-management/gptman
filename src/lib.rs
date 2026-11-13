@@ -2174,6 +2174,41 @@ mod test {
     }
 
     #[test]
+    fn names_with_trailing_garbage_survive_a_rewrite() {
+        // NOTE: parted and GParted rename a partition without zeroing the old name, so the bytes
+        //       after the null terminator keep whatever was there before. The checksum covers
+        //       those bytes, so a name that is decoded and encoded back has to keep them, or the
+        //       bytes written back are no longer the ones it was computed over. This is what
+        //       issue #142 was about.
+        fn test(path: &str, ss: u64) {
+            let data = fs::read(path).unwrap();
+            let mut cur = io::Cursor::new(data.clone());
+
+            let mut gpt = GPT::read_from(&mut cur, ss).unwrap();
+            gpt.write_into(&mut cur).unwrap();
+
+            // The first assertion is the one that catches the regression: a re-encoded name would
+            // change this array, and the bytes written would then no longer be the bytes the
+            // fixture's checksum covers.
+            let array_offset = 2 * ss as usize;
+            let len = 128 * 128;
+            assert_eq!(
+                cur.get_ref()[array_offset..array_offset + len],
+                data[array_offset..array_offset + len],
+                "{path}: the partition entry array changed while being rewritten"
+            );
+
+            // The rewritten table also has to read back. This alone would not catch the
+            // regression, since `write_into` recomputes both checksums over what it writes, so
+            // the table stays self-consistent either way.
+            assert!(GPT::read_from(&mut cur, ss).is_ok());
+        }
+
+        test(DISK3, 512);
+        test(DISK4, 4096);
+    }
+
+    #[test]
     fn gpt_read_from_on_image_with_corrupted_partition_entry_array_crc32_in_primary() {
         let mut f = fs::File::open(DISK5).unwrap();
         let gpt = GPT::read_from(&mut f, 512).unwrap();

@@ -33,6 +33,7 @@ Fixed:
 - `GPTHeader::read_partitions` allocated and seeked according to `number_of_partition_entries` read straight from the disk, so a crafted header could request a multi-gigabyte allocation (#149)
 - `PartitionName::from` kept a name longer than 36 UTF-16 code units whole while writing only the first 36 to disk, so `as_str` could report a name the disk never holds. The name is now truncated to the 36 code units that are written (#150)
 - The test module tripped `clippy::precedence` on an expression that shifted before it masked, which the lint job of the MSRV build reports as an error. The expression sat in a loop sampling code units that the exhaustive test below it already covers, so the loop went with it (#150)
+- Test that a partition name whose bytes after the null terminator hold garbage survives a rewrite, which is the case parted and GParted produce when they rename a partition, and the one issue #142 was about (#150)
 
 ## v3.1.1 (2026-04-28)
 
