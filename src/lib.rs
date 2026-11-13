@@ -522,22 +522,47 @@ impl GPTHeader {
     }
 }
 
-/// A wrapper type for `String` that represents a partition's name.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// A partition's name.
+///
+/// The name is kept as the 36 UTF-16LE code units the specification gives it, exactly as they
+/// are on disk, and decoded only when it is displayed. A name read from a disk that holds
+/// garbage after its null terminator therefore survives a write unchanged, and the value stays
+/// 72 bytes, the size of a partition entry's name field.
+///
+/// # Examples
+///
+/// Basic usage:
+/// ```
+/// let name: gptman::PartitionName = "A Robot Named Fight!".into();
+///
+/// assert_eq!(name.to_string(), "A Robot Named Fight!");
+/// ```
+///
+/// A name that does not fit in 36 UTF-16 code units is truncated:
+/// ```
+/// let name: gptman::PartitionName = "0123456789012345678901234567890123456789".into();
+///
+/// assert_eq!(name.to_string(), "012345678901234567890123456789012345");
+/// ```
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct PartitionName {
-    string: String,
     raw_buf: [u16; 36],
 }
 
 impl PartitionName {
-    /// Extracts a string slice containing the entire `PartitionName`.
-    pub fn as_str(&self) -> &str {
-        &self.string
+    /// The code units of the name, up to the first null one.
+    fn units(&self) -> &[u16] {
+        let end = self
+            .raw_buf
+            .iter()
+            .position(|x| *x == 0)
+            .unwrap_or(self.raw_buf.len());
+        &self.raw_buf[..end]
     }
 
     /// Decode a partition name from its on-disk representation: 36 UTF-16LE code units.
     ///
-    /// The string stops at the first null code unit; anything after it is kept so that a name
+    /// The name stops at the first null code unit; anything after it is kept so that a name
     /// encoded again, or used for a checksum, is byte-for-byte identical to what was read.
     pub fn from_bytes(bytes: &[u8; 72]) -> PartitionName {
         let mut raw_buf = [0; 36];
@@ -545,21 +570,13 @@ impl PartitionName {
             *x = u16::from_le_bytes(bytes[2 * i..2 * i + 2].try_into().unwrap());
         }
 
-        let zero_pos = raw_buf
-            .iter()
-            .position(|x| *x == 0)
-            .unwrap_or(raw_buf.len());
-
-        PartitionName {
-            string: String::from_utf16_lossy(&raw_buf[..zero_pos]),
-            raw_buf,
-        }
+        PartitionName { raw_buf }
     }
 
     /// Encode the partition name to its on-disk representation.
     ///
-    /// The bytes read from disk are used rather than the string, so that garbage left after the
-    /// null terminator of a name read from disk is written back unchanged.
+    /// The bytes read from disk are used rather than the decoded name, so that garbage left after
+    /// the null terminator of a name read from disk is written back unchanged.
     pub fn to_bytes(&self) -> [u8; 72] {
         let mut bytes = [0; 72];
         for (i, x) in self.raw_buf.iter().enumerate() {
@@ -569,25 +586,51 @@ impl PartitionName {
     }
 }
 
-impl std::fmt::Display for PartitionName {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.string)
+impl core::fmt::Display for PartitionName {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        use core::fmt::Write;
+
+        for x in char::decode_utf16(self.units().iter().copied()) {
+            match x {
+                Ok(c) => f.write_char(c)?,
+                Err(_) => f.write_char(char::REPLACEMENT_CHARACTER)?,
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl core::fmt::Debug for PartitionName {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        use core::fmt::Write;
+
+        // NOTE: the raw buffer is 36 numbers, which is never what a caller wants to see in a log.
+        // The decoded name is written the way `str` is, quoted with its characters escaped.
+        // `str` does not escape the single quote, so neither does this.
+        f.write_char('"')?;
+        for x in char::decode_utf16(self.units().iter().copied()) {
+            let c = x.unwrap_or(char::REPLACEMENT_CHARACTER);
+            if c == '\'' {
+                f.write_char(c)?;
+                continue;
+            }
+            for x in c.escape_debug() {
+                f.write_char(x)?;
+            }
+        }
+        f.write_char('"')
     }
 }
 
 impl From<&str> for PartitionName {
     fn from(value: &str) -> PartitionName {
-        let utf16_converted: Vec<_> = value
-            .encode_utf16()
-            .chain([0].into_iter().cycle())
-            .take(36)
-            .collect();
         let mut raw_buf = [0; 36];
-        raw_buf.copy_from_slice(&utf16_converted);
-        PartitionName {
-            string: value.to_string(),
-            raw_buf,
+        for (i, x) in value.encode_utf16().take(36).enumerate() {
+            raw_buf[i] = x;
         }
+
+        PartitionName { raw_buf }
     }
 }
 
@@ -613,9 +656,9 @@ impl From<&str> for PartitionName {
 ///     partition_name: "A Robot Named Fight!".into(),
 /// };
 ///
-/// assert_eq!(gpt[1].partition_name.as_str(), "A Robot Named Fight!");
+/// assert_eq!(gpt[1].partition_name.to_string(), "A Robot Named Fight!");
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct GPTPartitionEntry {
     /// 16 bytes representing the UUID of the partition's type.
     pub partition_type_guid: [u8; 16],
@@ -638,7 +681,7 @@ pub struct GPTPartitionEntry {
     /// ```
     /// let name: gptman::PartitionName = "A Robot Named Fight!".into();
     ///
-    /// assert_eq!(name.as_str(), "A Robot Named Fight!");
+    /// assert_eq!(name.to_string(), "A Robot Named Fight!");
     /// ```
     pub partition_name: PartitionName,
 }
@@ -1749,17 +1792,25 @@ mod test {
         assert_eq!(
             gpt.iter()
                 .filter(|(_, x)| x.is_used())
-                .map(|(i, x)| (i, x.partition_name.as_str()))
+                .map(|(i, x)| (i, x.partition_name.to_string()))
                 .collect::<Vec<_>>(),
-            vec![(1, "Foo"), (2, "Bar"), (10, "Baz")]
+            vec![
+                (1, "Foo".to_string()),
+                (2, "Bar".to_string()),
+                (10, "Baz".to_string())
+            ]
         );
         gpt.sort();
         assert_eq!(
             gpt.iter()
                 .filter(|(_, x)| x.is_used())
-                .map(|(i, x)| (i, x.partition_name.as_str()))
+                .map(|(i, x)| (i, x.partition_name.to_string()))
                 .collect::<Vec<_>>(),
-            vec![(1, "Foo"), (2, "Baz"), (3, "Bar")]
+            vec![
+                (1, "Foo".to_string()),
+                (2, "Baz".to_string()),
+                (3, "Bar".to_string())
+            ]
         );
     }
 
@@ -2114,10 +2165,45 @@ mod test {
                     .get(1)
                     .unwrap()
                     .partition_name
-                    .as_str(),
+                    .to_string(),
                 "Name with garbage"
             );
         }
+        test(DISK3, 512);
+        test(DISK4, 4096);
+    }
+
+    #[test]
+    fn names_with_trailing_garbage_survive_a_rewrite() {
+        // NOTE: parted and GParted rename a partition without zeroing the old name, so the bytes
+        //       after the null terminator keep whatever was there before. The checksum covers
+        //       those bytes, so a name that is decoded and encoded back has to keep them, or the
+        //       bytes written back are no longer the ones it was computed over. This is what
+        //       issue #142 was about.
+        fn test(path: &str, ss: u64) {
+            let data = fs::read(path).unwrap();
+            let mut cur = io::Cursor::new(data.clone());
+
+            let mut gpt = GPT::read_from(&mut cur, ss).unwrap();
+            gpt.write_into(&mut cur).unwrap();
+
+            // The first assertion is the one that catches the regression: a re-encoded name would
+            // change this array, and the bytes written would then no longer be the bytes the
+            // fixture's checksum covers.
+            let array_offset = 2 * ss as usize;
+            let len = 128 * 128;
+            assert_eq!(
+                cur.get_ref()[array_offset..array_offset + len],
+                data[array_offset..array_offset + len],
+                "{path}: the partition entry array changed while being rewritten"
+            );
+
+            // The rewritten table also has to read back. This alone would not catch the
+            // regression, since `write_into` recomputes both checksums over what it writes, so
+            // the table stays self-consistent either way.
+            assert!(GPT::read_from(&mut cur, ss).is_ok());
+        }
+
         test(DISK3, 512);
         test(DISK4, 4096);
     }
@@ -2173,6 +2259,124 @@ mod test {
     }
 
     #[test]
+    fn partition_name_display_matches_from_utf16_lossy() {
+        fn test(raw_buf: [u16; 36]) {
+            let zero_pos = raw_buf
+                .iter()
+                .position(|x| *x == 0)
+                .unwrap_or(raw_buf.len());
+            let expected = String::from_utf16_lossy(&raw_buf[..zero_pos]);
+
+            let mut bytes = [0; 72];
+            for (i, x) in raw_buf.iter().enumerate() {
+                bytes[2 * i..2 * i + 2].copy_from_slice(&x.to_le_bytes());
+            }
+
+            let name = PartitionName::from_bytes(&bytes);
+            assert_eq!(name.to_string(), expected);
+            // Debug forwards to the same decoded form, wrapped in quotes and escaped, so that a
+            // log line shows the name rather than the 36 code units.
+            assert_eq!(format!("{name:?}"), format!("{expected:?}"));
+        }
+
+        // An ordinary name.
+        let mut raw_buf = [0; 36];
+        for (i, x) in "A Robot Named Fight!".encode_utf16().enumerate() {
+            raw_buf[i] = x;
+        }
+        test(raw_buf);
+
+        // A name that fills the buffer, so it has no null terminator.
+        test([0x0041; 36]);
+
+        // A name that stops at a null code unit, with text after it.
+        let mut raw_buf = [0; 36];
+        raw_buf[0] = 0x0041;
+        raw_buf[1] = 0x0000;
+        raw_buf[2] = 0x0042;
+        test(raw_buf);
+
+        // An unpaired high surrogate, which is legal in UTF-16 but not in UTF-8.
+        let mut raw_buf = [0; 36];
+        raw_buf[0] = 0x0041;
+        raw_buf[1] = 0xd800;
+        raw_buf[2] = 0x0042;
+        test(raw_buf);
+
+        // An unpaired low surrogate.
+        let mut raw_buf = [0; 36];
+        raw_buf[0] = 0x0041;
+        raw_buf[1] = 0xdc00;
+        raw_buf[2] = 0x0042;
+        test(raw_buf);
+
+        // A valid surrogate pair, which is one character and not two.
+        let mut raw_buf = [0; 36];
+        raw_buf[0] = 0xd83d;
+        raw_buf[1] = 0xde42;
+        test(raw_buf);
+
+        // Characters `Debug` has to escape: a quote, a backslash, a newline, and a single quote,
+        // which `str` leaves alone.
+        let mut raw_buf = [0; 36];
+        for (i, x) in "\"\\\n'é".encode_utf16().enumerate() {
+            raw_buf[i] = x;
+        }
+        test(raw_buf);
+    }
+
+    #[test]
+    fn partition_name_display_and_debug_cover_every_code_unit() {
+        // The test above samples the code space; this one walks all of it, so a character that
+        // `Display` renders or `Debug` escapes differently from `str` cannot slip through.
+        fn unit_to_name(unit: u16) -> (PartitionName, String) {
+            let mut bytes = [0; 72];
+            bytes[0..2].copy_from_slice(&unit.to_le_bytes());
+
+            let decoded = char::decode_utf16([unit])
+                .next()
+                .unwrap()
+                .unwrap_or(char::REPLACEMENT_CHARACTER);
+
+            (PartitionName::from_bytes(&bytes), decoded.to_string())
+        }
+
+        for unit in 0..=u16::MAX {
+            // Unit 0 is the null terminator, so it makes an empty name rather than a name
+            // holding U+0000.
+            if unit == 0 {
+                continue;
+            }
+
+            let (name, expected) = unit_to_name(unit);
+            assert_eq!(name.to_string(), expected, "unit {unit:#06x}");
+            assert_eq!(
+                format!("{name:?}"),
+                format!("{expected:?}"),
+                "unit {unit:#06x}"
+            );
+        }
+    }
+
+    #[test]
+    fn partition_name_truncates_to_the_buffer_size() {
+        let name: PartitionName = "0123456789012345678901234567890123456789".into();
+        assert_eq!(name.to_string(), "012345678901234567890123456789012345");
+    }
+
+    #[test]
+    fn partition_entry_is_copy_and_entry_sized() {
+        fn assert_copy<T: Copy>() {}
+        assert_copy::<GPTPartitionEntry>();
+        assert_copy::<PartitionName>();
+
+        // The entry is exactly the 128 bytes the specification gives it, so a table of entries
+        // costs no more in memory than it does on disk.
+        assert_eq!(size_of::<GPTPartitionEntry>(), 128);
+        assert_eq!(size_of::<PartitionName>(), 72);
+    }
+
+    #[test]
     fn read_partitions_rejects_mismatched_entry_count() {
         let mut f = fs::File::open(DISK1).unwrap();
         f.seek(SeekFrom::Start(512)).unwrap();
@@ -2206,7 +2410,7 @@ mod test {
                 starting_lba: 2,
                 unique_partition_guid: [2; 16],
             };
-            let entries: Vec<GPTPartitionEntry> = (0..count).map(|_| entry.clone()).collect();
+            let entries: Vec<GPTPartitionEntry> = (0..count).map(|_| entry).collect();
 
             // NOTE: `new_from` describes 128 entries by default, so the disk has to be large
             //       enough for those before the count is changed to the one under test.
