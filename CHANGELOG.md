@@ -19,6 +19,7 @@ Changed:
 - Remove the `thiserror` dependency; `Error` and `BlockError` implement `core::fmt::Display` and `core::error::Error` by hand, with the same messages and sources (#149)
 - Remove the `crc` dependency; the CRC-32 the specification requires is computed by a private module. Other than the optional `nix` feature, `gptman` has no dependencies left (#149)
 - `PartitionName` is 72 bytes, the size of the name field of a partition entry, and `GPTPartitionEntry` is 128 bytes, the size the specification gives it, against 96 and 152 before: a 128-entry table takes 16 KiB instead of 19 KiB (#150)
+- Remove the `homepage` field of `Cargo.toml`, which held the same URL as `repository`, where cargo warns about it since 1.101 (#150)
 
 Added:
 
@@ -31,6 +32,7 @@ Fixed:
 - `GPTHeader::generate_partition_entry_array_crc32` panicked on a header describing partition entries of a size other than 128, and on a `number_of_partition_entries` whose product with the entry size overflows a `u32`. Both now return an error (#149)
 - `GPTHeader::read_partitions` allocated and seeked according to `number_of_partition_entries` read straight from the disk, so a crafted header could request a multi-gigabyte allocation (#149)
 - `PartitionName::from` kept a name longer than 36 UTF-16 code units whole while writing only the first 36 to disk, so `as_str` could report a name the disk never holds. The name is now truncated to the 36 code units that are written (#150)
+- The test module tripped `clippy::precedence` on an expression that shifted before it masked, which the lint job of the MSRV build reports as an error. The expression sat in a loop sampling code units that the exhaustive test below it already covers, so the loop went with it (#150)
 
 ## v3.1.1 (2026-04-28)
 

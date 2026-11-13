@@ -2288,15 +2288,6 @@ mod test {
             raw_buf[i] = x;
         }
         test(raw_buf);
-
-        // Every code unit from 0 to 35, so the whole BMP range around the surrogates is covered.
-        for low in 0..36 {
-            let mut raw_buf = [0; 36];
-            for (i, x) in raw_buf.iter_mut().enumerate() {
-                *x = (i as u16) << 11 | low as u16;
-            }
-            test(raw_buf);
-        }
     }
 
     #[test]

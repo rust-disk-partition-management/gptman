@@ -7,7 +7,6 @@ edition = "2021"
 rust-version = "1.85"
 description = "Pure Rust library to read and modify GUID partition tables"
 repository = "https://github.com/rust-disk-partition-management/gptman"
-homepage = "https://github.com/rust-disk-partition-management/gptman"
 documentation = "https://docs.rs/gptman"
 readme = "README.md"
 include = ["src/**/*.rs", "tests/fixtures/*.img", "README.md", "CHANGELOG.md", "LICENSE.Apache-2.0", "LICENSE.MIT"]
