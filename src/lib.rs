@@ -313,8 +313,9 @@ impl GPTHeader {
 
     /// Read and validate the partition entry array that belongs to this header.
     ///
-    /// Seeks the reader to the array with `partition_entry_lba` and `sector_size`, reads all
-    /// entries, then verifies `partition_entry_array_crc32` against the bytes read.
+    /// Seeks the reader to the array with `partition_entry_lba` and `sector_size`, reads the
+    /// entries a sector at a time (one entry at a time when a sector is smaller than an entry),
+    /// then verifies `partition_entry_array_crc32` against the bytes read.
     pub fn read_partitions<R>(
         &self,
         reader: &mut R,
@@ -325,17 +326,40 @@ impl GPTHeader {
     {
         self.check_partition_entry_array()?;
 
-        let size = (u64::from(self.number_of_partition_entries)
-            * u64::from(self.size_of_partition_entry)) as usize;
         reader.seek(SeekFrom::Start(
             self.partition_entry_lba
                 .checked_mul(sector_size)
                 .ok_or(Error::Overflow)?,
         ))?;
-        let mut data = vec![0; size];
-        reader.read_exact(&mut data)?;
 
-        let sum = crc32::checksum(&data);
+        // NOTE: the array is read and hashed a sector at a time, so it never has to be held in
+        //       memory as a whole: only the partitions themselves are kept. Reading a single
+        //       entry at a time instead would issue one read call per entry, which is 128 of them
+        //       for the usual table and three times slower on a real file. The buffer holds the
+        //       entries that make up a sector (a single entry when a sector is smaller than an
+        //       entry), or the whole array when that is smaller, so it stays bounded by the array
+        //       size rather than by the sector size the caller gives.
+        const ENTRY_SIZE: usize = 128;
+
+        let total = self.number_of_partition_entries as usize;
+        let entries_per_sector = (sector_size as usize / ENTRY_SIZE).max(1);
+        let entries_per_read = entries_per_sector.min(total);
+        let mut partitions = Vec::with_capacity(total);
+        let mut crc = crc32::Crc32::new();
+        let mut buf = vec![0; entries_per_read * ENTRY_SIZE];
+        let mut remaining = total;
+        while remaining > 0 {
+            let count = remaining.min(entries_per_read);
+            let len = count * ENTRY_SIZE;
+            reader.read_exact(&mut buf[..len])?;
+            crc.update(&buf[..len]);
+            for bytes in buf[..len].chunks_exact(ENTRY_SIZE) {
+                partitions.push(GPTPartitionEntry::from_bytes(bytes.try_into().unwrap()));
+            }
+            remaining -= count;
+        }
+
+        let sum = crc.finalize();
         if self.partition_entry_array_crc32 != sum {
             return Err(Error::InvalidPartitionEntryArrayChecksum(
                 self.partition_entry_array_crc32,
@@ -343,10 +367,7 @@ impl GPTHeader {
             ));
         }
 
-        Ok(data
-            .chunks_exact(128)
-            .map(|x| GPTPartitionEntry::from_bytes(x.try_into().unwrap()))
-            .collect())
+        Ok(partitions)
     }
 
     /// Write the GPT header into a writer. This operation will update the CRC32 checksums of the
@@ -2162,6 +2183,69 @@ mod test {
             header.generate_partition_entry_array_crc32(&partitions),
             Err(Error::InvalidPartitionEntryCount(127, 128))
         ));
+    }
+
+    #[test]
+    fn read_partitions_in_sectors_of_any_size() {
+        // NOTE: the array is read a sector at a time, so the last read is a partial one whenever
+        //       the number of entries is not a multiple of the entries per sector.
+        for (ss, count) in [
+            (512u64, 128u32), // 4 entries per sector, exact
+            (512, 130),       // 4 entries per sector, 2 left over
+            (512, 1),         // a single entry, a partial read
+            (4096, 128),      // 32 entries per sector, exact
+            (4096, 33),       // 32 entries per sector, 1 left over
+            (512, 256),       // twice the usual table, 64 reads
+            (96, 8),          // a sector smaller than an entry
+        ] {
+            let entry = GPTPartitionEntry {
+                attribute_bits: 0,
+                ending_lba: 9,
+                partition_name: "entry".into(),
+                partition_type_guid: [1; 16],
+                starting_lba: 2,
+                unique_partition_guid: [2; 16],
+            };
+            let entries: Vec<GPTPartitionEntry> = (0..count).map(|_| entry.clone()).collect();
+
+            // NOTE: `new_from` describes 128 entries by default, so the disk has to be large
+            //       enough for those before the count is changed to the one under test.
+            let sectors = 2 + 16384usize.div_ceil(ss as usize);
+            let mut header = GPTHeader::new_from(
+                &mut io::Cursor::new(vec![0; ss as usize * (sectors + 1)]),
+                ss,
+                [3; 16],
+            )
+            .unwrap();
+            header.number_of_partition_entries = count;
+            header.partition_entry_lba = 2;
+            header.update_partition_entry_array_crc32(&entries).unwrap();
+            header.update_crc32_checksum();
+
+            // Lay the entries out the way a disk holds them: the header in sector 1, the array
+            // from sector 2, everything padded to whole sectors.
+            let array_sectors = (count as usize * 128).div_ceil(ss as usize);
+            let mut disk = vec![0u8; ss as usize * (2 + array_sectors)];
+            disk[ss as usize..ss as usize + 92].copy_from_slice(&header.to_bytes());
+            for (i, entry) in entries.iter().enumerate() {
+                let offset = 2 * ss as usize + i * 128;
+                disk[offset..offset + 128].copy_from_slice(&entry.to_bytes());
+            }
+
+            let mut cur = io::Cursor::new(&mut disk[..]);
+            cur.seek(SeekFrom::Start(ss)).unwrap();
+            let header = GPTHeader::read_from(&mut cur).unwrap();
+            let read = header.read_partitions(&mut cur, ss).unwrap();
+
+            assert_eq!(
+                read.len(),
+                count as usize,
+                "sector size {ss}, {count} entries"
+            );
+            for entry in &read {
+                assert_eq!(entry, &entries[0], "sector size {ss}, {count} entries");
+            }
+        }
     }
 
     #[test]

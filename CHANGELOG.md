@@ -12,7 +12,7 @@ Breaking changes:
 
 Changed:
 
-- `GPTHeader::read_partitions` reads the partition entry array in one go and checks its CRC32 against the bytes read, instead of reading each entry separately
+- `GPTHeader::read_partitions` seeks once and reads the partition entry array a sector at a time, instead of seeking and reading once per entry as it did in v3.1.1. Peak heap is 19 984 bytes for `GPT::read_from` on a 128-entry table, against 19 624 in v3.1.1
 - `GPTHeader::read_from` rejects a partition entry size other than 128 and an array larger than 16 MiB
 - Remove the `thiserror` dependency; `Error` and `BlockError` implement `core::fmt::Display` and `core::error::Error` by hand, with the same messages and sources
 - Remove the `crc` dependency; the CRC-32 the specification requires is computed by a private module. Other than the optional `nix` feature, `gptman` has no dependencies left
