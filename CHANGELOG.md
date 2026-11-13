@@ -9,6 +9,8 @@ Breaking changes:
 - `GPTHeader::generate_partition_entry_array_crc32` and `GPTHeader::update_partition_entry_array_crc32` now return a `Result`: the array must hold as many entries as the header describes (#149)
 - Remove `Error::Deserialize` and `Error::Seserialize`, which can no longer happen (#149)
 - A truncated header or partition entry now returns `Error::Io` with `UnexpectedEof` (#149)
+- Remove `PartitionName::as_str`, which has no replacement: a `&str` cannot borrow into `[u16; 36]`, so use `Display`, `to_string` or `format!` to print a name (#150)
+- `PartitionName` no longer holds a `String`; it keeps the 36 UTF-16LE code units of the name alone (#150)
 
 Changed:
 
@@ -16,16 +18,19 @@ Changed:
 - `GPTHeader::read_from` rejects a partition entry size other than 128 and an array larger than 16 MiB (#149)
 - Remove the `thiserror` dependency; `Error` and `BlockError` implement `core::fmt::Display` and `core::error::Error` by hand, with the same messages and sources (#149)
 - Remove the `crc` dependency; the CRC-32 the specification requires is computed by a private module. Other than the optional `nix` feature, `gptman` has no dependencies left (#149)
+- `PartitionName` is 72 bytes, the size of the name field of a partition entry, and `GPTPartitionEntry` is 128 bytes, the size the specification gives it, against 96 and 152 before: a 128-entry table takes 16 KiB instead of 19 KiB (#150)
 
 Added:
 
 - `GPTHeader::from_bytes`/`to_bytes` over `&[u8; 92]`, `GPTPartitionEntry::from_bytes`/`to_bytes` over `&[u8; 128]` and `PartitionName::from_bytes`/`to_bytes` over `&[u8; 72]` (#149)
 - `Error::InvalidPartitionEntrySize`, `Error::InvalidPartitionEntryArraySize` and `Error::InvalidPartitionEntryCount` (#149)
+- `PartitionName` and `GPTPartitionEntry` are `Copy`, and `Debug` for `PartitionName` prints the name rather than its 36 code units (#150)
 
 Fixed:
 
 - `GPTHeader::generate_partition_entry_array_crc32` panicked on a header describing partition entries of a size other than 128, and on a `number_of_partition_entries` whose product with the entry size overflows a `u32`. Both now return an error (#149)
 - `GPTHeader::read_partitions` allocated and seeked according to `number_of_partition_entries` read straight from the disk, so a crafted header could request a multi-gigabyte allocation (#149)
+- `PartitionName::from` kept a name longer than 36 UTF-16 code units whole while writing only the first 36 to disk, so `as_str` could report a name the disk never holds. The name is now truncated to the 36 code units that are written (#150)
 
 ## v3.1.1 (2026-04-28)
 
